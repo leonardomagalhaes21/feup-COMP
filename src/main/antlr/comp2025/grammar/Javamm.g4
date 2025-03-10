@@ -4,26 +4,44 @@ grammar Javamm;
     package pt.up.fe.comp2025;
 }
 
-CLASS : 'class' ;
-INT : 'int' ;
-PUBLIC : 'public' ;
-RETURN : 'return' ;
+CLASS: 'class';
+EXTENDS: 'extends';
+IMPORT: 'import';
+NEW: 'new';
+RETURN: 'return';
+STATIC: 'static';
+VOID: 'void';
+BOOLEAN: 'boolean';
+TRUE: 'true';
+FALSE: 'false';
+THIS: 'this';
+WHILE: 'while';
+IF: 'if';
+ELSE: 'else';
+LENGTH: 'length';
+INT: 'int';
+STRING: 'String';
+ELLIPSIS: '...';
 
-INTEGER : [0-9] ;
-ID : [a-zA-Z]+ ;
+INTEGER: [0-9]+;
+ID: [a-zA-Z_][a-zA-Z0-9_]*;
 
-WS : [ \t\n\r\f]+ -> skip ;
+WS: [ \t\n\r]+ -> skip;
 
 program
-    : classDecl EOF
+    : importDecl* classDecl EOF
     ;
 
+importDecl
+    : IMPORT name+=ID ('.' name+=ID)* ';'
+    ;
 
 classDecl
-    : CLASS name=ID
-        '{'
-        methodDecl*
-        '}'
+    : CLASS name+=ID (EXTENDS superClass+=ID)? '{' classBody '}'
+    ;
+
+classBody
+    : varDecl* methodDecl*
     ;
 
 varDecl
@@ -31,28 +49,56 @@ varDecl
     ;
 
 type
-    : name= INT ;
-
-methodDecl locals[boolean isPublic=false]
-    : (PUBLIC {$isPublic=true;})?
-        type name=ID
-        '(' param ')'
-        '{' varDecl* stmt* '}'
+    : INT ('[' ']')*       # IntType
+    | BOOLEAN              # BooleanType
+    | ID ('[' ']')*        # ClassType
+    | STRING ('[' ']')*    # StringType
     ;
 
 param
-    : type name=ID
+    : type (ELLIPSIS name=ID | name=ID)
+    ;
+
+paramList
+    : param (',' param)*
+    ;
+
+methodDecl
+    : (STATIC | VOID | type) name=ID '(' paramList? ')' block
+    | STATIC VOID mainMethod=ID '(' paramList? ')' block // Tratar o método main
+    ;
+
+block
+    : '{' stmt* '}'
     ;
 
 stmt
-    : expr '=' expr ';' #AssignStmt //
-    | RETURN expr ';' #ReturnStmt
+    : block                            # BlockStmt
+    | expr ';'                         # ExprStmt
+    | IF '(' expr ')' stmt (ELSE stmt)? # IfStmt
+    | WHILE '(' expr ')' stmt          # WhileStmt
+    | expr '=' expr ';'                # AssignStmt
+    | expr '[' expr ']' '=' expr ';'   # ArrayAssignStmt
+    | RETURN expr ';'                  # ReturnStmt
     ;
 
 expr
-    : expr op= '*' expr #BinaryExpr //
-    | expr op= '+' expr #BinaryExpr //
-    | value=INTEGER #IntegerLiteral //
-    | name=ID #VarRefExpr //
+    : expr '.' LENGTH                  # LengthExpr
+    | expr '[' expr ']'                # ArrayAccessExpr
+    | expr '.' ID '(' argList? ')'     # MemberCallExpr
+    | NEW type '(' ')'                 # NewObjectExpr
+    | NEW type '[' expr ']'            # NewArrayExpr
+    | '(' expr ')'                     # ParenExpr
+    | expr op=('+' | '-' | '*' | '/' | '<' | '&&') expr # BinaryExpr
+    | '!' expr                         # NotExpr
+    | TRUE                             # TrueLiteral
+    | FALSE                            # FalseLiteral
+    | THIS                             # ThisExpr
+    | INTEGER                          # IntLiteral
+    | ID                               # VarRefExpr
+    | '[' expr (',' expr)* ']'         # ArrayInitExpr
     ;
 
+argList
+    : expr (',' expr)*
+    ;
