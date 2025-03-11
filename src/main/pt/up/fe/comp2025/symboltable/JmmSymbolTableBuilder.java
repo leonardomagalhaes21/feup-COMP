@@ -36,30 +36,45 @@ public class JmmSymbolTableBuilder {
     public JmmSymbolTable build(JmmNode root) {
 
         reports = new ArrayList<>();
-
-        var classDecl = root.getChild(0);
+        var imports = buildImports(root.getChildren("ImportDeclaration"));
+        var index = imports.isEmpty() ? 0 : imports.size();
+        if (index >= root.getNumChildren()) {
+            reports.add(newError(root, "Expected at least one class declaration"));
+            throw new RuntimeException("Expected at least one class declaration");
+        }
+        var classDecl = root.getChild(index);
         SpecsCheck.checkArgument(Kind.CLASS_DECL.check(classDecl), () -> "Expected a class declaration: " + classDecl);
-        String className = classDecl.get("name");
 
+
+        String className = classDecl.get("name");
+        var superClass = classDecl.hasAttribute("superClass") ? classDecl.get("superClass") : "";
         var methods = buildMethods(classDecl);
         var returnTypes = buildReturnTypes(classDecl);
         var params = buildParams(classDecl);
         var locals = buildLocals(classDecl);
-        var imports = buildImports(classDecl);
         var fields = buildFields(classDecl);
-        var superClassName = classDecl.get("superclass");
 
-        return new JmmSymbolTable(className, methods, returnTypes, params, locals, imports, superClassName, fields);
+
+        return new JmmSymbolTable(
+                className,
+                methods,
+                returnTypes,
+                params,
+                locals,
+                imports,
+                superClass,
+                fields
+        );
     }
 
-    private Map<String, Type> buildReturnTypes(JmmNode classDecl) {
+    private static Map<String, Type> buildReturnTypes(JmmNode classDecl) {
         Map<String, Type> map = new HashMap<>();
 
-        for (var method : classDecl.getChildren(METHOD_DECL)) {
-            var name = method.get("name");
-            var returnType = getType(method.get("returnType"));
-            map.put(name, returnType);
-        }
+        var methods = classDecl.getChildren("Method");
+
+        methods.forEach(method -> map.put(
+                method.get("name"),
+                parseType(method.getObject("typename", JmmNode.class))));
 
         return map;
     }
@@ -70,7 +85,7 @@ public class JmmSymbolTableBuilder {
         for (var method : classDecl.getChildren(METHOD_DECL)) {
             var name = method.get("name");
             var params = method.getChildren(PARAM).stream()
-                    .map(param -> new Symbol(getType(param.get("type")), param.get("name")))
+                    .map(param -> new Symbol(getType(param.get("typename")), param.get("name")))
                     .toList();
 
             map.put(name, params);
@@ -104,24 +119,27 @@ public class JmmSymbolTableBuilder {
         return methods;
     }
 
-    private List<String> buildImports(JmmNode classDecl) {
-        List<String> imports = new ArrayList<>();
-        for (var imp : classDecl.getChildren(IMPORT)) {
-            imports.add(imp.get("name"));
-        }
-        return imports;
+    private List<String> buildImports(List<JmmNode> importList) {
+        return importList.stream().map(node -> node.get("ID")).toList();
     }
 
-
-
     private List<Symbol> buildFields(JmmNode classDecl) {
-        List<Symbol> fields = new ArrayList<>();
-        for (var field : classDecl.getChildren(FIELD_DECL)) {
-            var fieldName = field.get("name");
-            var fieldType = getType(field.get("type"));
-            fields.add(new Symbol(fieldType, fieldName));
-        }
-        return fields;
+        return classDecl.getChildren("Variable").stream()
+                .map(this::createSymbol)
+                .toList();
+    }
+
+    private Symbol createSymbol(JmmNode node) {
+        return new Symbol(
+                parseType(node.getObject("typename", JmmNode.class)),
+                node.get("name")
+        );
+    }
+    private static Type parseType(JmmNode node) {
+        return new Type(
+                node.get("name"),
+                node.get("isArray").equals("true")
+        );
     }
 
 
@@ -129,12 +147,7 @@ public class JmmSymbolTableBuilder {
         switch (type) {
             case "int":
                 return TypeUtils.newIntType();
-            case "boolean":
-                return TypeUtils.newBoolType();
-            case "string":
-                return TypeUtils.newStringType();
-            case "void":
-                return TypeUtils.newVoidType();
+
             default:
                 throw new IllegalArgumentException("Unsupported type: " + type);
         }

@@ -4,6 +4,7 @@ grammar Javamm;
     package pt.up.fe.comp2025;
 }
 
+PUBLIC: 'public';
 CLASS: 'class';
 EXTENDS: 'extends';
 IMPORT: 'import';
@@ -24,52 +25,58 @@ STRING: 'String';
 ELLIPSIS: '...';
 
 INTEGER: [0-9]+;
-ID: [a-zA-Z_][a-zA-Z0-9_]*;
+ID: [a-zA-Z_$][a-zA-Z0-9_$]*;
 
-WS: [ \t\n\r]+ -> skip;
+WS: [ \t\n\r\f]+ -> skip;
+SINGLE_LINE_COMMENT : '//' .*? '\n' -> skip;
+MULTI_LINE_COMMENT  : '/*' .*? '*/' -> skip;
+
 
 program
     : importDecl* classDecl EOF
     ;
 
 importDecl
-    : IMPORT name+=ID ('.' name+=ID)* ';'
+    : IMPORT name+=ID ('.' name+=ID)* ';'       # ImportDeclaration
     ;
 
 classDecl
-    : CLASS name+=ID (EXTENDS superClass+=ID)? '{' classBody '}'
-    ;
-
-classBody
-    : varDecl* methodDecl*
+    : CLASS name=ID (EXTENDS superClass=ID)? '{' varDecl* methodDecl* '}'   # ClassDeclaration
     ;
 
 varDecl
-    : type name=ID ';'
+    : typename=type name=ID ';'      # Variable
     ;
 
-type
-    : INT ('[' ']')*       # IntType
-    | BOOLEAN              # BooleanType
-    | ID ('[' ']')*        # ClassType
-    | STRING ('[' ']')*    # StringType
+
+//rever
+type locals[boolean isArray=false, boolean isVarargs=false]
+    : name=INT ('[' INTEGER? ']' {$isArray=true;})?
+    | name=INT (ELLIPSIS {$isArray=true; $isVarargs=true;})?
+    | name=BOOLEAN
+    | name=VOID
+    | name='String' ('[' ']' {$isArray=true;})?
+    | name=ID;
+
+
+
+methodDecl locals[boolean isPublic=false, boolean isStatic=false]
+    : (PUBLIC {$isPublic=true;})?
+      (STATIC {$isStatic=true;})?
+      typename=type name=ID
+      parameters=params
+      block                 #Method
     ;
 
+params
+    : '(' (param (',' param)*)? ')'     #Parameters
+    ;
 param
-    : type (ELLIPSIS name=ID | name=ID)
-    ;
-
-paramList
-    : param (',' param)*
-    ;
-
-methodDecl
-    : (STATIC | VOID | type) name=ID '(' paramList? ')' block
-    | STATIC VOID mainMethod=ID '(' paramList? ')' block // Tratar o método main
+    : typename=type (ELLIPSIS name=ID | name=ID) #Parameter
     ;
 
 block
-    : '{' stmt* '}'
+    : '{' varDecl* stmt* '}'
     ;
 
 stmt
@@ -82,6 +89,8 @@ stmt
     | RETURN expr ';'                  # ReturnStmt
     ;
 
+
+//rever
 expr
     : expr '.' LENGTH                  # LengthExpr
     | expr '[' expr ']'                # ArrayAccessExpr

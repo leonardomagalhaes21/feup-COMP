@@ -48,6 +48,8 @@ public class JmmSymbolTable extends AJmmSymbolTable {
 
     @Override
     public String getClassName() {
+        System.out.println("getClassName: " + className);
+
         return className;
     }
 
@@ -68,7 +70,7 @@ public class JmmSymbolTable extends AJmmSymbolTable {
 
     @Override
     public Type getReturnType(String methodSignature) {
-        return returnTypes.getOrDefault(methodSignature, TypeUtils.newIntType());
+        return returnTypes.get(methodSignature);
     }
 
     @Override
@@ -80,39 +82,6 @@ public class JmmSymbolTable extends AJmmSymbolTable {
     public List<Symbol> getLocalVariables(String methodSignature) {
         return locals.get(methodSignature);
     }
-    public Type getVarType(String varName) {
-        // Verificar se é um campo da classe
-        for (var field : fields) {
-            if (field.getName().equals(varName)) {
-                return field.getType();
-            }
-        }
-
-        // Verificar se é um parâmetro ou variável local em algum método
-        for (var method : methods) {
-            var localsList = locals.get(method);
-            if (localsList != null) {
-                for (var symbol : localsList) {
-                    if (symbol.getName().equals(varName)) {
-                        return symbol.getType();
-                    }
-                }
-            }
-
-            var paramsList = params.get(method);
-            if (paramsList != null) {
-                for (var symbol : paramsList) {
-                    if (symbol.getName().equals(varName)) {
-                        return symbol.getType();
-                    }
-                }
-            }
-        }
-
-        // Se a variável não for encontrada
-        throw new IllegalArgumentException("Variable " + varName + " not found.");
-    }
-
 
 
     @Override

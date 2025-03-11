@@ -27,8 +27,9 @@ public enum Kind {
     BINARY_EXPR,
     INTEGER_LITERAL,
     VAR_REF_EXPR,
-    FIELD_DECL(),
-    IMPORT();
+    FIELD_DECL,
+    IMPORT_DECL,
+    LENGTH_EXPR,
 
 
 
