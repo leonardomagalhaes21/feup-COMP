@@ -87,7 +87,7 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
     private String visitReturn(JmmNode node, Void unused) {
         // TODO: Hardcoded for int type, needs to be expanded
-        Type retType = TypeUtils.newIntType();
+        Type retType = TypeUtils.newType(TypeUtils.TypeName.INT, false);
 
 
         StringBuilder code = new StringBuilder();

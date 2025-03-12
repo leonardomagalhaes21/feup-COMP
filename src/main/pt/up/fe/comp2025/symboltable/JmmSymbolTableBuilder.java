@@ -63,15 +63,15 @@ public class JmmSymbolTableBuilder {
     }
 
     private static Map<String, Type> buildReturnTypes(JmmNode classDecl) {
-        Map<String, Type> map = new HashMap<>();
+        Map<String, Type> returnTypeMap = new HashMap<>();
 
         var methods = classDecl.getChildren("Method");
 
-        methods.forEach(method -> map.put(
+        methods.forEach(method -> returnTypeMap.put(
                 method.get("name"),
                 parseType(method.getObject("typename", JmmNode.class))));
 
-        return map;
+        return returnTypeMap;
     }
 
     private Map<String, List<Symbol>> buildParams(JmmNode classDecl) {
@@ -143,7 +143,7 @@ public class JmmSymbolTableBuilder {
     private Type getType(String type) {
         switch (type) {
             case "int":
-                return TypeUtils.newIntType();
+                return TypeUtils.newType(TypeUtils.TypeName.INT, false);
 
             default:
                 throw new IllegalArgumentException("Unsupported type: " + type);

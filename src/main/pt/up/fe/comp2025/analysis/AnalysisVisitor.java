@@ -8,6 +8,7 @@ import pt.up.fe.comp.jmm.report.Stage;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiFunction;
 
 /**
  * Implementation of AnalysisPass that automatically visits nodes using preorder traversal.

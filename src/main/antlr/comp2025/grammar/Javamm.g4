@@ -101,6 +101,6 @@ expr
     | expr op=('+' | '-') expr          # BinaryExpr
     | expr op=('<=' | '<' | '>' | '>=')
       expr                              # BinaryExpr
-    | expr op='==' expr                 # BinaryExpr
+    | expr op=('=='| '!=') expr         # BinaryExpr
     | expr op=('||' | '&&') expr        # BinaryExpr
     ;
