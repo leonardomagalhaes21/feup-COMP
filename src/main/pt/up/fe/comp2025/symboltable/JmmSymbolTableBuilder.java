@@ -82,7 +82,7 @@ public class JmmSymbolTableBuilder {
     private Map<String, List<Symbol>> buildParams(JmmNode classDecl) {
         Map<String, List<Symbol>> map = new HashMap<>();
 
-        for (var method : classDecl.getChildren(METHOD_DECL)) {
+        for (var method : classDecl.getChildren("Method")) {
             var name = method.get("name");
             var params = method.getChildren(PARAM).stream()
                     .map(param -> new Symbol(getType(param.get("typename")), param.get("name")))
@@ -94,29 +94,31 @@ public class JmmSymbolTableBuilder {
         return map;
     }
 
-    private Map<String, List<Symbol>> buildLocals(JmmNode classDecl) {
+    private static Map<String, List<Symbol>> buildLocals(JmmNode classDecl) {
+        Map<String, List<Symbol>> localsMap = new HashMap<>();
 
-        var map = new HashMap<String, List<Symbol>>();
-
-        for (var method : classDecl.getChildren(METHOD_DECL)) {
-            var name = method.get("name");
-            var locals = method.getChildren(VAR_DECL).stream()
-                    .map(varDecl -> new Symbol(getType(varDecl.get("type")), varDecl.get("name")))
+        for (var method : classDecl.getChildren("Method")) {
+            var methodName = method.get("name");
+            var localSymbols = method.getChildren("Variable").stream()
+                    .map(JmmSymbolTableBuilder::newSymbol)
                     .toList();
-
-            map.put(name, locals);
+            localsMap.put(methodName, localSymbols);
         }
 
-        return map;
+        return localsMap;
+    }
+
+    private static Symbol newSymbol(JmmNode node) {
+        var typeNode = node.getObject("typename", JmmNode.class);
+        var type = new Type(typeNode.get("name"), "true".equals(typeNode.get("isArray")));
+        var name = node.get("name");
+        return new Symbol(type, name);
     }
 
     private List<String> buildMethods(JmmNode classDecl) {
-
-        var methods = classDecl.getChildren(METHOD_DECL).stream()
+        return classDecl.getChildren("Method").stream()
                 .map(method -> method.get("name"))
                 .toList();
-
-        return methods;
     }
 
     private List<String> buildImports(List<JmmNode> importList) {

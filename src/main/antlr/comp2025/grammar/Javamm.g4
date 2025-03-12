@@ -44,12 +44,14 @@ classDecl
     : CLASS name=ID (EXTENDS superClass=ID)? '{' varDecl* methodDecl* '}'   # ClassDeclaration
     ;
 
-varDecl
-    : typename=type name=ID ';'      # Variable
+methodDecl locals[boolean isPublic=false, boolean isStatic=false]
+    : (PUBLIC {$isPublic=true;})?
+      (STATIC {$isStatic=true;})?
+      typename=type name=ID
+      parameters=params
+      '{' varDecl* stmt* '}'                 #Method
     ;
 
-
-//rever
 type locals[boolean isArray=false, boolean isVarargs=false]
     : name=INT ('[' INTEGER? ']' {$isArray=true;})?
     | name=INT (ELLIPSIS {$isArray=true; $isVarargs=true;})?
@@ -58,29 +60,16 @@ type locals[boolean isArray=false, boolean isVarargs=false]
     | name='String' ('[' ']' {$isArray=true;})?
     | name=ID;
 
-
-
-methodDecl locals[boolean isPublic=false, boolean isStatic=false]
-    : (PUBLIC {$isPublic=true;})?
-      (STATIC {$isStatic=true;})?
-      typename=type name=ID
-      parameters=params
-      block                 #Method
-    ;
-
 params
     : '(' (param (',' param)*)? ')'     #Parameters
     ;
-param
-    : typename=type (ELLIPSIS name=ID | name=ID) #Parameter
-    ;
 
-block
-    : '{' varDecl* stmt* '}'
+param
+    : typename=type name=ID #Parameter
     ;
 
 stmt
-    : block                            # BlockStmt
+    : '{' varDecl* stmt* '}'           # BlockStmt
     | expr ';'                         # ExprStmt
     | IF '(' expr ')' stmt (ELSE stmt)? # IfStmt
     | WHILE '(' expr ')' stmt          # WhileStmt
@@ -89,25 +78,29 @@ stmt
     | RETURN expr ';'                  # ReturnStmt
     ;
 
-
-//rever
-expr
-    : expr '.' LENGTH                  # LengthExpr
-    | expr '[' expr ']'                # ArrayAccessExpr
-    | expr '.' ID '(' argList? ')'     # MemberCallExpr
-    | NEW type '(' ')'                 # NewObjectExpr
-    | NEW type '[' expr ']'            # NewArrayExpr
-    | '(' expr ')'                     # ParenExpr
-    | expr op=('+' | '-' | '*' | '/' | '<' | '&&') expr # BinaryExpr
-    | '!' expr                         # NotExpr
-    | TRUE                             # TrueLiteral
-    | FALSE                            # FalseLiteral
-    | THIS                             # ThisExpr
-    | INTEGER                          # IntLiteral
-    | ID                               # VarRefExpr
-    | '[' expr (',' expr)* ']'         # ArrayInitExpr
+varDecl
+    : typename=type name=ID ';'      # Variable
     ;
 
-argList
-    : expr (',' expr)*
+expr
+    : '(' expr ')'                      # ParenExpr
+    | '!' expr                          # UnaryExpr
+    | expr '.' methodname=ID            # FuncExpr
+    | expr '.' methodname=ID
+      '(' (expr (',' expr)* )? ')'      # FuncExpr
+    | expr ('.' expr)+                  # MemberExpr
+    | value=INTEGER                     # IntegerLiteral
+    | value=('true' | 'false')          # BooleanLiteral
+    | name=ID                           # VarRefExpr
+    | expr ('[' expr ']')+              # ArrayAccessExpr
+    | '[' (expr (',' expr)*)? ']'       # ArrayExpr
+    | NEW classname=ID '(' ')'          # NewExpr
+    | NEW INT '[' expr ']'              # NewArrayExpr
+    | name=THIS                         # ThisExpr
+    | expr op=('*' | '/') expr          # BinaryExpr
+    | expr op=('+' | '-') expr          # BinaryExpr
+    | expr op=('<=' | '<' | '>' | '>=')
+      expr                              # BinaryExpr
+    | expr op='==' expr                 # BinaryExpr
+    | expr op=('||' | '&&') expr        # BinaryExpr
     ;

@@ -52,10 +52,8 @@ public class TypeUtils {
      */
     public Type getExprType(JmmNode expr) {
         var kind = Kind.fromString(expr.getKind());
-        return switch (kind){
 
-        }
-
+        return new Type("int", false);
     }
 
 

@@ -29,7 +29,7 @@ public enum Kind {
     VAR_REF_EXPR,
     FIELD_DECL,
     IMPORT_DECL,
-    LENGTH_EXPR,
+    LENGTH_EXPR;
 
 
 
