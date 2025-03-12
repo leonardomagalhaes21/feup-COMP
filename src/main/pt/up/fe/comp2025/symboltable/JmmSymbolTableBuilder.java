@@ -36,24 +36,19 @@ public class JmmSymbolTableBuilder {
     public JmmSymbolTable build(JmmNode root) {
 
         reports = new ArrayList<>();
-        var imports = buildImports(root.getChildren("ImportDeclaration"));
-        var index = imports.isEmpty() ? 0 : imports.size();
-        if (index >= root.getNumChildren()) {
-            reports.add(newError(root, "Expected at least one class declaration"));
-            throw new RuntimeException("Expected at least one class declaration");
-        }
-        var classDecl = root.getChild(index);
-        SpecsCheck.checkArgument(Kind.CLASS_DECL.check(classDecl), () -> "Expected a class declaration: " + classDecl);
-
-
+        SpecsCheck.checkArgument(Kind.PROGRAM.check(root), () -> "Expected a valid program");
+        var classDecl = root.getChildren("ClassDeclaration").get(0);
         String className = classDecl.get("name");
         var superClass = classDecl.hasAttribute("superClass") ? classDecl.get("superClass") : "";
+
+        var importList = root.getChildren("ImportDeclaration");
+        var imports = buildImports(importList);
+
+        var fields = buildFields(classDecl);
         var methods = buildMethods(classDecl);
         var returnTypes = buildReturnTypes(classDecl);
         var params = buildParams(classDecl);
         var locals = buildLocals(classDecl);
-        var fields = buildFields(classDecl);
-
 
         return new JmmSymbolTable(
                 className,
@@ -80,18 +75,18 @@ public class JmmSymbolTableBuilder {
     }
 
     private Map<String, List<Symbol>> buildParams(JmmNode classDecl) {
-        Map<String, List<Symbol>> map = new HashMap<>();
+        Map<String, List<Symbol>> paramsMap = new HashMap<>();
 
         for (var method : classDecl.getChildren("Method")) {
-            var name = method.get("name");
-            var params = method.getChildren(PARAM).stream()
-                    .map(param -> new Symbol(getType(param.get("typename")), param.get("name")))
+            var methodName = method.get("name");
+            var params = method.getChildren("Parameters").stream()
+                    .flatMap(paramsNode -> paramsNode.getChildren("Parameter").stream())
+                    .map(param -> new Symbol(parseType(param.getObject("typename", JmmNode.class)), param.get("name")))
                     .toList();
-
-            map.put(name, params);
+            paramsMap.put(methodName, params);
         }
 
-        return map;
+        return paramsMap;
     }
 
     private static Map<String, List<Symbol>> buildLocals(JmmNode classDecl) {
