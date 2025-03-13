@@ -6,6 +6,7 @@ import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp.jmm.report.Stage;
 import pt.up.fe.comp2025.ast.Kind;
+import pt.up.fe.comp2025.ast.TypeName;
 import pt.up.fe.comp2025.ast.TypeUtils;
 import pt.up.fe.specs.util.SpecsCheck;
 
@@ -143,7 +144,7 @@ public class JmmSymbolTableBuilder {
     private Type getType(String type) {
         switch (type) {
             case "int":
-                return TypeUtils.newType(TypeUtils.TypeName.INT, false);
+                return TypeUtils.newType(TypeName.INT, false);
 
             default:
                 throw new IllegalArgumentException("Unsupported type: " + type);

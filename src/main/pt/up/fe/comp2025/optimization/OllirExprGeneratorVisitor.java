@@ -5,7 +5,7 @@ import pt.up.fe.comp.jmm.analysis.table.Type;
 import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.comp.jmm.ast.PreorderJmmVisitor;
 import pt.up.fe.comp2025.ast.TypeUtils;
-
+import pt.up.fe.comp2025.ast.TypeName;
 import static pt.up.fe.comp2025.ast.Kind.*;
 
 /**
@@ -41,7 +41,7 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
 
 
     private OllirExprResult visitInteger(JmmNode node, Void unused) {
-        var intType = TypeUtils.newType(TypeUtils.TypeName.INT, false);
+        var intType = TypeUtils.newType(TypeName.INT, false);
         String ollirIntType = ollirTypes.toOllirType(intType);
         String code = node.get("value") + ollirIntType;
         return new OllirExprResult(code);

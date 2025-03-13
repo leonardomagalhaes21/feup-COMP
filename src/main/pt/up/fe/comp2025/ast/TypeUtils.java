@@ -17,23 +17,6 @@ public class TypeUtils {
         this.table = (JmmSymbolTable) table;
     }
 
-    public enum TypeName {
-        INT("int"),
-        BOOLEAN("boolean"),
-        VOID("void"),
-        ANY("any");
-
-        private final String name;
-
-        TypeName(String name) {
-            this.name = name;
-        }
-
-        public String getName() {
-            return name;
-        }
-    }
-
     public static Type newType(TypeName typeName, boolean isArray) {
         return new Type(typeName.getName(), isArray);
     }
@@ -128,7 +111,7 @@ public class TypeUtils {
         return new Type(className, false);
     }
 
-    public static boolean isAssignable(Type left, Type right) {
+    public boolean isAssignable(Type left, Type right) {
         if (left == null || right == null) return false;
         if (left.isArray() || right.isArray()) {
             return left.isArray() && right.isArray() && left.getName().equals(right.getName());

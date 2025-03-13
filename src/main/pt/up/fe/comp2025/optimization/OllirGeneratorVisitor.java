@@ -4,6 +4,7 @@ import pt.up.fe.comp.jmm.analysis.table.SymbolTable;
 import pt.up.fe.comp.jmm.analysis.table.Type;
 import pt.up.fe.comp.jmm.ast.AJmmVisitor;
 import pt.up.fe.comp.jmm.ast.JmmNode;
+import pt.up.fe.comp2025.ast.TypeName;
 import pt.up.fe.comp2025.ast.TypeUtils;
 
 import java.util.stream.Collectors;
@@ -87,7 +88,7 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
     private String visitReturn(JmmNode node, Void unused) {
         // TODO: Hardcoded for int type, needs to be expanded
-        Type retType = TypeUtils.newType(TypeUtils.TypeName.INT, false);
+        Type retType = TypeUtils.newType(TypeName.INT, false);
 
 
         StringBuilder code = new StringBuilder();
