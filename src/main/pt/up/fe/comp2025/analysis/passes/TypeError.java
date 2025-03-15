@@ -37,8 +37,16 @@ public class TypeError extends AnalysisVisitor {
                 addReport(Report.newError(Stage.SEMANTIC, returnStmt.getLine(), returnStmt.getColumn(), message, null));
             }
         } else {
-            var returnType = new TypeUtils(table).getExprType(returnStmt.getChildren().get(0));
-            if (!methodReturnType.equals(returnType)) {
+            var returnExpr = returnStmt.getChildren().getFirst();
+            var typeUtils = new TypeUtils(table);
+            var returnType = typeUtils.getExprType(returnExpr);
+
+            // Special case for imported method calls
+            if (returnType.getName().equals("importedType") && Kind.FUNC_EXPR.check(returnExpr)) {
+                return null;
+            }
+
+            if (!typeUtils.isAssignable(methodReturnType, returnType)) {
                 var message = "Incompatible return type. Expected '" + methodReturnType.getName() + "' but found '" + returnType.getName() + "'.";
                 addReport(Report.newError(Stage.SEMANTIC, returnStmt.getLine(), returnStmt.getColumn(), message, null));
             }

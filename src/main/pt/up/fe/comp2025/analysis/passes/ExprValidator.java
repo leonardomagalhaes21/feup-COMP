@@ -101,8 +101,8 @@ public class ExprValidator extends AnalysisVisitor {
             if (funcExpr.getNumChildren() > 1) { // First child is caller, rest are arguments
                 var parameters = table.getParameters(methodName);
                 var arguments = funcExpr.getChildren().subList(1, funcExpr.getNumChildren());
-                boolean isVarargs = parameters.size() > 0 &&
-                        parameters.get(parameters.size() - 1).getType().isArray();
+                boolean isVarargs = !parameters.isEmpty() &&
+                        parameters.getLast().getType().isArray();
 
                 if (!isVarargs && arguments.size() != parameters.size()) {
                     var message = "Method '" + methodName + "' expects " + parameters.size() +
