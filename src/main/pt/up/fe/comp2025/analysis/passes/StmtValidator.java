@@ -29,13 +29,7 @@ public class StmtValidator extends AnalysisVisitor {
 
         if (!typeUtils.isAssignable(leftType, rightType)) {
             var message = "Cannot assign a value of type '" + rightType.getName() + "' to a variable of type '" + leftType.getName() + "'.";
-            addReport(Report.newError(
-                    Stage.SEMANTIC,
-                    assignStmt.getLine(),
-                    assignStmt.getColumn(),
-                    message,
-                    null)
-            );
+            addReport(Report.newError(Stage.SEMANTIC, assignStmt.getLine(), assignStmt.getColumn(), message, null));
             return null;
         }
 
@@ -47,19 +41,19 @@ public class StmtValidator extends AnalysisVisitor {
 
                     if (!typeUtils.isAssignable(expectedType, elementType)) {
                         String errorMessage = "Expected array elements of type '" + expectedType.getName() + "', but found type '" + elementType.getName() + "'.";
-                        addReport(Report.newError(
-                                Stage.SEMANTIC,
-                                assignStmt.getLine(),
-                                assignStmt.getColumn(),
-                                errorMessage,
-                                null)
-                        );
+                        addReport(Report.newError(Stage.SEMANTIC, assignStmt.getLine(), assignStmt.getColumn(), errorMessage, null));
                     }
                 }
             }
         }
-        return null;
 
+        if (Kind.NEW_EXPR.check(right) && !right.hasAttribute("class")) {
+            var message = "Node NewExpr does not contain attribute 'class'.";
+            addReport(Report.newError(Stage.SEMANTIC, right.getLine(), right.getColumn(), message, null));
+            return null;
+        }
+
+        return null;
     }
 
 

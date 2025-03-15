@@ -31,20 +31,18 @@ public class TypeError extends AnalysisVisitor {
     private Void visitReturnStmt(JmmNode returnStmt, SymbolTable table) {
         var methodReturnType = table.getReturnType(currentMethod.get("name"));
 
-        if(methodReturnType.getName().equals(TypeName.VOID.getName())) {
-            if(returnStmt.getNumChildren() > 0) {
+        if (methodReturnType.getName().equals(TypeName.VOID.getName())) {
+            if (returnStmt.getNumChildren() > 0) {
                 var message = "Cannot return a value from a method that returns 'void'.";
-                addReport(Report.newError(
-                        Stage.SEMANTIC,
-                        returnStmt.getLine(),
-                        returnStmt.getColumn(),
-                        message,
-                        null));
+                addReport(Report.newError(Stage.SEMANTIC, returnStmt.getLine(), returnStmt.getColumn(), message, null));
+            }
+        } else {
+            var returnType = new TypeUtils(table).getExprType(returnStmt.getChildren().get(0));
+            if (!methodReturnType.equals(returnType)) {
+                var message = "Incompatible return type. Expected '" + methodReturnType.getName() + "' but found '" + returnType.getName() + "'.";
+                addReport(Report.newError(Stage.SEMANTIC, returnStmt.getLine(), returnStmt.getColumn(), message, null));
             }
         }
-        // ver se o tipo do return é igual ao tipo da função
-
-
 
         return null;
     }

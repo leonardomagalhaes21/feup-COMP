@@ -96,9 +96,41 @@ public class FlowError extends AnalysisVisitor {
     }
 
     private boolean isValidStatement(JmmNode node, SymbolTable table) {
-        // Implement logic to check if the node represents a valid statement
-        // This can include checking for valid expressions, valid variable declarations, etc.
+        TypeUtils typeUtils = new TypeUtils(table);
 
+        // Check if the node is a valid statement kind
+        if (Kind.STATEMENTS.contains(Kind.valueOf(node.getKind()))) {
+            return true;
+        }
+
+        // Check if the node is a valid expression kind using a public method
+        if (isExpressionKind(node)) {
+            var exprType = typeUtils.getExprType(node);
+            return exprType != null;
+        }
+
+        // Check for variable declarations
+        if (Kind.VAR_DECL.equals(Kind.valueOf(node.getKind()))) {
+            var varType = typeUtils.getExprType(node.getChildren().get(0));
+            return varType != null;
+        }
+
+        // If none of the above, the statement is not valid
         return false;
+    }
+
+    private boolean isExpressionKind(JmmNode node) {
+        // Implement logic to check if the node is an expression kind
+        // This can be a list of known expression kinds
+        return Kind.FUNC_EXPR.equals(Kind.valueOf(node.getKind())) ||
+                Kind.MEMBER_EXPR.equals(Kind.valueOf(node.getKind())) ||
+                Kind.ARRAY_ACCESS_EXPR.equals(Kind.valueOf(node.getKind())) ||
+                Kind.ARRAY_EXPR.equals(Kind.valueOf(node.getKind())) ||
+                Kind.NEW_EXPR.equals(Kind.valueOf(node.getKind())) ||
+                Kind.NEW_ARRAY_EXPR.equals(Kind.valueOf(node.getKind())) ||
+                Kind.PAREN_EXPR.equals(Kind.valueOf(node.getKind())) ||
+                Kind.UNARY_EXPR.equals(Kind.valueOf(node.getKind())) ||
+                Kind.THIS_EXPR.equals(Kind.valueOf(node.getKind())) ||
+                Kind.EXPR.equals(Kind.valueOf(node.getKind()));
     }
 }

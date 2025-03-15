@@ -78,17 +78,80 @@ public class ExprValidator extends AnalysisVisitor {
     }
 
     private Void visitFuncExpr(JmmNode funcExpr, SymbolTable table) {
+        if (!funcExpr.hasAttribute("name")) {
+            var message = "Node FuncExpr does not contain attribute 'name'.";
+            addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
+            return null;
+        }
+
+        var methodName = funcExpr.get("name");
+
+        // Check if the method is declared
+        if (!table.getMethods().contains(methodName)) {
+            var message = "Method '" + methodName + "' is not declared.";
+            addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
+            return null;
+        }
+
+        var args = funcExpr.getChildren();
+        var params = table.getParameters(methodName);
+
+        if (args.size() != params.size()) {
+            var message = "Incompatible number of arguments for method '" + methodName + "'. Expected " + params.size() + " but found " + args.size() + ".";
+            addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
+            return null;
+        }
+
+        for (int i = 0; i < args.size(); i++) {
+            var argType = new TypeUtils(table).getExprType(args.get(i));
+            var paramType = params.get(i).getType();
+
+            if (!argType.equals(paramType)) {
+                var message = "Incompatible argument type for parameter " + (i + 1) + " of method '" + methodName + "'. Expected '" + paramType.getName() + "' but found '" + argType.getName() + "'.";
+                addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
+                return null;
+            }
+        }
+
         return null;
     }
 
     private Void visitMemberExpr(JmmNode memberExpr, SymbolTable table) {
+        TypeUtils typeUtils = new TypeUtils(table);
+        JmmNode objectExpr = memberExpr.getChildren().getFirst();
+        String memberName = memberExpr.get("member");
+
+        // Obter o tipo da expressão do objeto
+        var objectType = typeUtils.getExprType(objectExpr);
+
+        // Verificar se o membro existe na classe ou suas superclasses
+        if (!table.getMethods().contains(memberName) && !table.getFields().stream().anyMatch(field -> field.getName().equals(memberName))) {
+            var message = "Member '" + memberName + "' does not exist in class '" + objectType.getName() + "'.";
+            addReport(Report.newError(Stage.SEMANTIC, memberExpr.getLine(), memberExpr.getColumn(), message, null));
+            return null;
+        }
+
         return null;
     }
 
-    private Void visitNewExpr(JmmNode newExpr, SymbolTable table){
+    private Void visitNewExpr(JmmNode newExpr, SymbolTable table) {
+        if (!newExpr.hasAttribute("class")) {
+            var message = "Node NewExpr does not contain attribute 'class'.";
+            addReport(Report.newError(Stage.SEMANTIC, newExpr.getLine(), newExpr.getColumn(), message, null));
+            return null;
+        }
+
+        var className = newExpr.get("class");
+
+        // Check if the class is imported
+        if (!table.getImports().contains(className)) {
+            var message = "Class '" + className + "' is not imported.";
+            addReport(Report.newError(Stage.SEMANTIC, newExpr.getLine(), newExpr.getColumn(), message, null));
+            return null;
+        }
+
         return null;
     }
-
     private Void visitNewArrayExpr(JmmNode newArrayExpr, SymbolTable table){
         return null;
     }
@@ -99,7 +162,24 @@ public class ExprValidator extends AnalysisVisitor {
     }
 
     private Void visitUnaryExpr(JmmNode unaryExpr, SymbolTable table) {
-        // Implement validation logic for unary expressions
+        TypeUtils typeUtils = new TypeUtils(table);
+        JmmNode expr = unaryExpr.getChildren().getFirst();
+
+        var exprType = typeUtils.getExprType(expr);
+
+        // Verificar se o tipo da expressão é compatível com a operação unária
+        if (!exprType.getName().equals(TypeName.INT.getName()) && !exprType.getName().equals(TypeName.BOOLEAN.getName())) {
+            var message = "Unary expression must be of type 'int' or 'boolean', but found '" + exprType.getName() + "'.";
+            addReport(Report.newError(
+                    Stage.SEMANTIC,
+                    unaryExpr.getLine(),
+                    unaryExpr.getColumn(),
+                    message,
+                    null)
+            );
+            return null;
+        }
+
         return null;
     }
 
@@ -111,3 +191,5 @@ public class ExprValidator extends AnalysisVisitor {
         return null;
     }
 }
+
+
