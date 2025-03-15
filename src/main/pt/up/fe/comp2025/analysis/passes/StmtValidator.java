@@ -47,8 +47,8 @@ public class StmtValidator extends AnalysisVisitor {
             }
         }
 
-        if (Kind.NEW_EXPR.check(right) && !right.hasAttribute("class")) {
-            var message = "Node NewExpr does not contain attribute 'class'.";
+        if (Kind.NEW_EXPR.check(right) && !right.hasAttribute("classname")) {
+            var message = "Node NewExpr does not contain attribute 'classname'.";
             addReport(Report.newError(Stage.SEMANTIC, right.getLine(), right.getColumn(), message, null));
             return null;
         }

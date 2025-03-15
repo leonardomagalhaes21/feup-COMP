@@ -118,11 +118,11 @@ public class TypeUtils {
     }
 
     private Type getNewExprType(JmmNode newExpr) {
-        if (!newExpr.hasAttribute("class")) {
-            throw new RuntimeException("Node NewExpr does not contain attribute 'class'.");
+        if (!newExpr.hasAttribute("classname")) {
+            throw new RuntimeException("Node NewExpr does not contain attribute 'classname'.");
         }
 
-        var className = newExpr.get("class");
+        var className = newExpr.get("classname");
 
         // Check for imported classes
         if (table.getImports().contains(className)) {

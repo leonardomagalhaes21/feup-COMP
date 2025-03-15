@@ -135,12 +135,15 @@ public class ExprValidator extends AnalysisVisitor {
 
     private Void visitNewExpr(JmmNode newExpr, SymbolTable table) {
         if (!newExpr.hasAttribute("classname")) {
-            var message = "Node NewExpr does not contain attribute 'class'.";
+            var message = "Node NewExpr does not contain attribute 'classname'.";
             addReport(Report.newError(Stage.SEMANTIC, newExpr.getLine(), newExpr.getColumn(), message, null));
             return null;
         }
 
         var imports = table.getImports();
+        if(imports.contains(table.getSuper())){
+            return null;
+        }
 
         if (!imports.contains(table.getSuper())) {
             var message = "Super '" + table.getSuper() + "' is not imported." + "Imports: " + imports;
