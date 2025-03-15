@@ -34,7 +34,6 @@ public class UndeclaredVariable extends AnalysisVisitor {
         // Check if exists a parameter or variable declaration with the same name as the variable reference
         var varRefName = varRefExpr.get("name");
 
-
         // Var is a parameter, return
         if (table.getParameters(currentMethod).stream()
                 .anyMatch(param -> param.getName().equals(varRefName))) {
@@ -47,6 +46,11 @@ public class UndeclaredVariable extends AnalysisVisitor {
             return null;
         }
 
+        // Var is a field, return
+        if (table.getFields().stream()
+                .anyMatch(field -> field.getName().equals(varRefName))) {
+            return null;
+        }
 
         // Create error report
         var message = String.format("Variable '%s' does not exist.", varRefName);

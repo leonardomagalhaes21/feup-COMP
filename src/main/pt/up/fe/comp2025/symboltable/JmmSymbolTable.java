@@ -2,12 +2,8 @@ package pt.up.fe.comp2025.symboltable;
 
 import pt.up.fe.comp.jmm.analysis.table.Symbol;
 import pt.up.fe.comp.jmm.analysis.table.Type;
-import pt.up.fe.comp2025.ast.TypeUtils;
-import pt.up.fe.specs.util.SpecsCheck;
-import pt.up.fe.specs.util.exceptions.NotImplementedException;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class JmmSymbolTable extends AJmmSymbolTable {
 
@@ -16,68 +12,77 @@ public class JmmSymbolTable extends AJmmSymbolTable {
     private final Map<String, Type> returnTypes;
     private final Map<String, List<Symbol>> params;
     private final Map<String, List<Symbol>> locals;
+    private final List<String> imports;
+    private final String superClass;
+    private final List<Symbol> fields;
 
 
+    // Atualizar o construtor para aceitar imports, superClass e fields
     public JmmSymbolTable(String className,
                           List<String> methods,
                           Map<String, Type> returnTypes,
                           Map<String, List<Symbol>> params,
-                          Map<String, List<Symbol>> locals) {
+                          Map<String, List<Symbol>> locals,
+                          List<String> imports,
+                          String superClass,
+                          List<Symbol> fields) {
 
         this.className = className;
         this.methods = methods;
         this.returnTypes = returnTypes;
         this.params = params;
         this.locals = locals;
+        this.imports = imports;
+        this.superClass = superClass;
+        this.fields = fields;
     }
 
     @Override
     public List<String> getImports() {
-        throw new NotImplementedException();
+        return imports;
     }
 
     @Override
     public String getClassName() {
+        System.out.println("getClassName: " + className);
+
         return className;
     }
 
     @Override
     public String getSuper() {
-        throw new NotImplementedException();
+        return superClass;
     }
 
     @Override
     public List<Symbol> getFields() {
-        throw new NotImplementedException();
+        return fields;
     }
-
 
     @Override
     public List<String> getMethods() {
-        return methods;
+        return Collections.unmodifiableList(methods);
     }
-
 
     @Override
     public Type getReturnType(String methodSignature) {
-        // TODO: Simple implementation that needs to be expanded
-        return TypeUtils.newIntType();
+        return returnTypes.get(methodSignature);
     }
 
     @Override
     public List<Symbol> getParameters(String methodSignature) {
-        return params.get(methodSignature);
+        return Collections.unmodifiableList(params.get(methodSignature));
     }
 
     @Override
     public List<Symbol> getLocalVariables(String methodSignature) {
-        return locals.get(methodSignature);
+        return Collections.unmodifiableList(locals.get(methodSignature));
     }
+
 
     @Override
     public String toString() {
         return print();
     }
-
 
 }

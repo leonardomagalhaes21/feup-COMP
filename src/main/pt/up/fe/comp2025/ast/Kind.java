@@ -21,12 +21,66 @@ public enum Kind {
     METHOD_DECL,
     PARAM,
     STMT,
-    ASSIGN_STMT,
-    RETURN_STMT,
     EXPR,
     BINARY_EXPR,
+
+    VAR_REF_EXPR,
+    FIELD_DECL,
+    IMPORT_DECL,
+    LENGTH_EXPR,
+
+
+    //Expressions
+    PAREN_EXPR,
+    UNARY_EXPR,
+    FUNC_EXPR,
+    MEMBER_EXPR,
+    BOOLEAN_LITERAL,
+    ARRAY_ACCESS_EXPR,
+    ARRAY_EXPR,
+    NEW_EXPR,
+    THIS_EXPR,
+    NEW_ARRAY_EXPR,
     INTEGER_LITERAL,
-    VAR_REF_EXPR;
+
+
+    //Statements
+    BLOCK_STMT,
+    EXPR_STMT,
+    IF_STMT,
+    WHILE_STMT,
+    ASSIGN_STMT,
+    ARRAY_ASSIGN_STMT,
+    RETURN_STMT;
+
+
+
+    public static final Set<Kind> STATEMENTS = Set.of(
+            BLOCK_STMT,
+            EXPR_STMT,
+            IF_STMT,
+            WHILE_STMT,
+            ASSIGN_STMT,
+            ARRAY_ASSIGN_STMT,
+            RETURN_STMT
+    );
+
+
+    private static final Set<Kind> EXPRESSIONS = Set.of(
+            BINARY_EXPR,
+            INTEGER_LITERAL,
+            VAR_REF_EXPR,
+            PAREN_EXPR,
+            UNARY_EXPR,
+            FUNC_EXPR,
+            MEMBER_EXPR,
+            BOOLEAN_LITERAL,
+            ARRAY_EXPR,
+            NEW_EXPR,
+            THIS_EXPR,
+            NEW_ARRAY_EXPR
+    );
+
 
 
     private final String name;

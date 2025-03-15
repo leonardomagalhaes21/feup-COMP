@@ -39,9 +39,9 @@ public class SymbolTableTest {
     @Test
     public void ClassAndSuper() {
         var semantics = test("symboltable/Super.jmm", false);
+
         assertEquals("Super", semantics.getSymbolTable().getClassName());
         assertEquals("UltraSuper", semantics.getSymbolTable().getSuper());
-
     }
 
     @Test
