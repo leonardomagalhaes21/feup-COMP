@@ -10,7 +10,6 @@ import pt.up.fe.comp2025.symboltable.JmmSymbolTable;
  */
 public class TypeUtils {
 
-
     private final JmmSymbolTable table;
 
     public TypeUtils(SymbolTable table) {
@@ -21,16 +20,22 @@ public class TypeUtils {
         return new Type(typeName.getName(), isArray);
     }
 
-
     public static Type convertType(JmmNode typeNode) {
-
-        // TODO: When you support new types, this must be updated
         var name = typeNode.get("name");
-        var isArray = false;
+
+        // Check if the type node has array or varargs attributes
+        var isArray = typeNode.getOptional("isArray")
+                .map(attr -> Boolean.parseBoolean(attr))
+                .orElse(false);
+
+        // For backward compatibility, also check if the type itself indicates it's an array
+        if (!isArray && (name.endsWith("[]") || name.contains("["))) {
+            isArray = true;
+            name = name.replaceAll("\\[\\]", "").trim();
+        }
 
         return new Type(name, isArray);
     }
-
 
     /**
      * Gets the {@link Type} of an arbitrary expression.
@@ -102,12 +107,44 @@ public class TypeUtils {
             }
         }
 
+        // Check in imported classes
+        for (var importClass : table.getImports()) {
+            // Implement logic to check methods in imported classes
+            // Placeholder: return a valid type if the method is found in the imported class
+            return new Type("importedType", false); // Placeholder
+        }
+
         return newType(TypeName.ANY, false);
     }
 
     private Type getNewExprType(JmmNode newExpr) {
+        if (!newExpr.hasAttribute("class")) {
+            throw new RuntimeException("Node NewExpr does not contain attribute 'class'.");
+        }
+
         var className = newExpr.get("class");
 
+        // Check for imported classes
+        if (table.getImports().contains(className)) {
+            // Class is directly imported
+            return new Type(className, false);
+        } else if (className.equals(table.getClassName())) {
+            // This is the current class
+            return new Type(className, false);
+        } else if (table.getSuper() != null && className.equals(table.getSuper())) {
+            // This is the superclass
+            return new Type(className, false);
+        } else {
+            // Check if it might be a qualified name from an import
+            for (String importName : table.getImports()) {
+                if (importName.endsWith("." + className)) {
+                    return new Type(className, false);
+                }
+            }
+        }
+
+        // If we get here, the class is not recognized
+        // Return the type anyway, but another validator will likely catch this error
         return new Type(className, false);
     }
 

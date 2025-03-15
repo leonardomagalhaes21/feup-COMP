@@ -9,6 +9,8 @@ import pt.up.fe.comp2025.ast.TypeUtils;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp.jmm.report.Stage;
 
+import java.util.Objects;
+
 public class ExprValidator extends AnalysisVisitor {
     @Override
     public void buildVisitor() {
@@ -28,7 +30,7 @@ public class ExprValidator extends AnalysisVisitor {
         var arrayType = typeUtils.getExprType(arrayExpr);
         for (var child : arrayExpr.getChildren()) {
             var childType = typeUtils.getExprType(child);
-            if (!typeUtils.isAssignable(arrayType, childType)) {
+            if (!arrayType.getName().equals(childType.getName())) {
                 var message = "Array elements must have the same type, but found '" + arrayType.getName() + "' and '" + childType.getName() + "'.";
                 addReport(Report.newError(
                         Stage.SEMANTIC,
@@ -78,40 +80,37 @@ public class ExprValidator extends AnalysisVisitor {
     }
 
     private Void visitFuncExpr(JmmNode funcExpr, SymbolTable table) {
-        if (!funcExpr.hasAttribute("name")) {
-            var message = "Node FuncExpr does not contain attribute 'name'.";
-            addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
+        var methodName = funcExpr.get("methodname");
+
+        // Check if the method is defined in the current class or is the "length" method
+        if (table.getMethods().contains(methodName) || "length".equals(methodName)) {
+            return null;
+        }
+        TypeUtils typeUtils = new TypeUtils(table);
+        var caller = funcExpr.getChildren().get(0);
+        var callerType = typeUtils.getExprType(caller);
+
+        var imports = table.getImports();
+        var superClass = table.getSuper();
+
+        // Check if the class extends an imported class
+        if (superClass != null && imports.contains(superClass)) {
             return null;
         }
 
-        var methodName = funcExpr.get("name");
-
-        // Check if the method is declared
-        if (!table.getMethods().contains(methodName)) {
-            var message = "Method '" + methodName + "' is not declared.";
-            addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
+        // Check if the method is defined in an imported class
+        if (imports.contains(callerType.getName())) {
             return null;
         }
 
-        var args = funcExpr.getChildren();
-        var params = table.getParameters(methodName);
-
-        if (args.size() != params.size()) {
-            var message = "Incompatible number of arguments for method '" + methodName + "'. Expected " + params.size() + " but found " + args.size() + ".";
-            addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
-            return null;
-        }
-
-        for (int i = 0; i < args.size(); i++) {
-            var argType = new TypeUtils(table).getExprType(args.get(i));
-            var paramType = params.get(i).getType();
-
-            if (!argType.equals(paramType)) {
-                var message = "Incompatible argument type for parameter " + (i + 1) + " of method '" + methodName + "'. Expected '" + paramType.getName() + "' but found '" + argType.getName() + "'.";
-                addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
-                return null;
-            }
-        }
+        var message = "Method '" + methodName + "' is not defined.";
+        addReport(Report.newError(
+                Stage.SEMANTIC,
+                funcExpr.getLine(),
+                funcExpr.getColumn(),
+                message,
+                null
+        ));
 
         return null;
     }
@@ -135,20 +134,20 @@ public class ExprValidator extends AnalysisVisitor {
     }
 
     private Void visitNewExpr(JmmNode newExpr, SymbolTable table) {
-        if (!newExpr.hasAttribute("class")) {
+        if (!newExpr.hasAttribute("classname")) {
             var message = "Node NewExpr does not contain attribute 'class'.";
             addReport(Report.newError(Stage.SEMANTIC, newExpr.getLine(), newExpr.getColumn(), message, null));
             return null;
         }
 
-        var className = newExpr.get("class");
+        var imports = table.getImports();
 
-        // Check if the class is imported
-        if (!table.getImports().contains(className)) {
-            var message = "Class '" + className + "' is not imported.";
+        if (!imports.contains(table.getSuper())) {
+            var message = "Super '" + table.getSuper() + "' is not imported." + "Imports: " + imports;
             addReport(Report.newError(Stage.SEMANTIC, newExpr.getLine(), newExpr.getColumn(), message, null));
             return null;
         }
+
 
         return null;
     }
