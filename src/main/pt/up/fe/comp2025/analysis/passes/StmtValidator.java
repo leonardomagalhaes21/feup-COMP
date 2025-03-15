@@ -28,6 +28,7 @@ public class StmtValidator extends AnalysisVisitor {
         var rightType = typeUtils.getExprType(right);
 
         if (!typeUtils.isAssignable(leftType, rightType)) {
+
             var message = "Cannot assign a value of type '" + rightType.getName() + "' to a variable of type '" + leftType.getName() + "'.";
             addReport(Report.newError(Stage.SEMANTIC, assignStmt.getLine(), assignStmt.getColumn(), message, null));
             return null;

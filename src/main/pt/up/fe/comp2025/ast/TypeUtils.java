@@ -153,6 +153,10 @@ public class TypeUtils {
         if (left.isArray() || right.isArray()) {
             return left.isArray() && right.isArray() && left.getName().equals(right.getName());
         }
+        if (right.getName().equals(table.getClassName()) && left.getName().equals(table.getSuper())) {
+            return true;
+        }
+
         return left.equals(right) || left.getName().equals("any") || right.getName().equals("any");
     }
 }
