@@ -157,6 +157,11 @@ public class TypeUtils {
             return true;
         }
 
+        var imports = table.getImports();
+        if (imports.contains(left.getName()) && imports.contains(right.getName())) {
+            return true;
+        }
+
         return left.equals(right) || left.getName().equals("any") || right.getName().equals("any");
     }
 }

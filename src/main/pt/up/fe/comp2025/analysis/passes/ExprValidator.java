@@ -82,36 +82,91 @@ public class ExprValidator extends AnalysisVisitor {
     private Void visitFuncExpr(JmmNode funcExpr, SymbolTable table) {
         var methodName = funcExpr.get("methodname");
 
-        // Check if the method is defined in the current class or is the "length" method
-        if (table.getMethods().contains(methodName) || "length".equals(methodName)) {
+        // Special case for length method on arrays
+        if ("length".equals(methodName) && funcExpr.getNumChildren() > 0) {
+            TypeUtils typeUtils = new TypeUtils(table);
+            var caller = funcExpr.getChildren().getFirst();
+            var callerType = typeUtils.getExprType(caller);
+
+            if (!callerType.isArray()) {
+                var message = "The 'length' method can only be called on arrays.";
+                addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
+            }
             return null;
         }
+
+        // Check if the method exists in the current class
+        if (table.getMethods().contains(methodName)) {
+            // Method exists in this class, verify argument types if any
+            if (funcExpr.getNumChildren() > 1) { // First child is caller, rest are arguments
+                var parameters = table.getParameters(methodName);
+                var arguments = funcExpr.getChildren().subList(1, funcExpr.getNumChildren());
+                boolean isVarargs = parameters.size() > 0 &&
+                        parameters.get(parameters.size() - 1).getType().isArray();
+
+                if (!isVarargs && arguments.size() != parameters.size()) {
+                    var message = "Method '" + methodName + "' expects " + parameters.size() +
+                            " arguments, but " + arguments.size() + " were provided.";
+                    addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
+                    return null;
+                }
+
+                TypeUtils typeUtils = new TypeUtils(table);
+                for (int i = 0; i < parameters.size(); i++) {
+                    var paramType = parameters.get(i).getType();
+                    var argType = typeUtils.getExprType(arguments.get(i));
+
+                    if (!isVarargs && !typeUtils.isAssignable(paramType, argType)) {
+                        var message = "Incompatible argument type for parameter '" + parameters.get(i).getName() +
+                                "'. Expected '" + paramType.getName() + (paramType.isArray() ? "[]" : "") +
+                                "', but got '" + argType.getName() + (argType.isArray() ? "[]" : "") + "'.";
+                        addReport(Report.newError(Stage.SEMANTIC, arguments.get(i).getLine(),
+                                arguments.get(i).getColumn(), message, null));
+                    }
+                }
+            }
+            return null;
+        }
+
+        // If there's no caller (like a.foo()), it's an invalid call
+        if (funcExpr.getNumChildren() == 0) {
+            var message = "Method '" + methodName + "' is not defined.";
+            addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
+            return null;
+        }
+
+        // There's a caller, check if method might exist in caller's type
         TypeUtils typeUtils = new TypeUtils(table);
-        var caller = funcExpr.getChildren().get(0);
+        var caller = funcExpr.getChildren().getFirst();
         var callerType = typeUtils.getExprType(caller);
 
-        var imports = table.getImports();
+        // If caller is "this", check class methods
+        if (Kind.THIS_EXPR.check(caller) && table.getMethods().contains(methodName)) {
+            return null;
+        }
+
+        // Check if caller type is the current class
+        if (callerType.getName().equals(table.getClassName()) && table.getMethods().contains(methodName)) {
+            return null;
+        }
+
+        // Check if method might be from superclass
         var superClass = table.getSuper();
-
-        // Check if the class extends an imported class
-        if (superClass != null && imports.contains(superClass)) {
-            return null;
+        if (superClass != null &&
+                (callerType.getName().equals(superClass) || callerType.getName().equals(table.getClassName()))) {
+            return null; // Assume method exists in superclass
         }
 
-        // Check if the method is defined in an imported class
-        if (imports.contains(callerType.getName())) {
-            return null;
+        // Check if method might be from imported class
+        var imports = table.getImports();
+        for (String importName : imports) {
+            if (importName.endsWith("." + callerType.getName()) || importName.equals(callerType.getName())) {
+                return null; // Assume method exists in imported class
+            }
         }
 
-        var message = "Method '" + methodName + "' is not defined.";
-        addReport(Report.newError(
-                Stage.SEMANTIC,
-                funcExpr.getLine(),
-                funcExpr.getColumn(),
-                message,
-                null
-        ));
-
+        var message = "Method '" + methodName + "' is not defined in type '" + callerType.getName() + "'.";
+        addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
         return null;
     }
 
@@ -124,7 +179,7 @@ public class ExprValidator extends AnalysisVisitor {
         var objectType = typeUtils.getExprType(objectExpr);
 
         // Verificar se o membro existe na classe ou suas superclasses
-        if (!table.getMethods().contains(memberName) && !table.getFields().stream().anyMatch(field -> field.getName().equals(memberName))) {
+        if (!table.getMethods().contains(memberName) && table.getFields().stream().noneMatch(field -> field.getName().equals(memberName))) {
             var message = "Member '" + memberName + "' does not exist in class '" + objectType.getName() + "'.";
             addReport(Report.newError(Stage.SEMANTIC, memberExpr.getLine(), memberExpr.getColumn(), message, null));
             return null;
@@ -145,11 +200,14 @@ public class ExprValidator extends AnalysisVisitor {
             return null;
         }
 
-        if (!imports.contains(table.getSuper())) {
+        if (!Objects.equals(table.getSuper(), "") && !imports.contains(table.getSuper())) {
             var message = "Super '" + table.getSuper() + "' is not imported." + "Imports: " + imports;
             addReport(Report.newError(Stage.SEMANTIC, newExpr.getLine(), newExpr.getColumn(), message, null));
             return null;
         }
+
+
+
 
 
         return null;
