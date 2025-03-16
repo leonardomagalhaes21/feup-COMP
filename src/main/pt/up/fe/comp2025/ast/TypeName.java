@@ -1,5 +1,4 @@
 package pt.up.fe.comp2025.ast;
-
 public enum TypeName {
     INT("int"),
     BOOLEAN("boolean"),
@@ -15,4 +14,6 @@ public enum TypeName {
     public String getName() {
         return name;
     }
+
+
 }

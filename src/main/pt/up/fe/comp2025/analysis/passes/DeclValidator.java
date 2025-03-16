@@ -15,6 +15,7 @@ public class DeclValidator extends AnalysisVisitor {
         addVisit(Kind.IMPORT_DECL, this::visitImportDecl);
         addVisit(Kind.VAR_DECL, this::visitVarDecl);
         addVisit(Kind.PARAM, this::visitParam);
+
     }
 
     private Void visitFieldDecl(JmmNode fieldDecl, SymbolTable table) {
@@ -36,4 +37,5 @@ public class DeclValidator extends AnalysisVisitor {
         // Implement validation logic for parameters
         return null;
     }
+
 }
