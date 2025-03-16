@@ -35,6 +35,7 @@ public class JmmAnalysisImpl implements JmmAnalysis {
         analysisVisitors.add(new LengthExprValidator());
         analysisVisitors.add(new LiteralValidator());
         analysisVisitors.add(new StmtValidator());
+        analysisVisitors.add(new UndefinedMethod());
 
         return analysisVisitors;
     }
