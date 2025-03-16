@@ -17,9 +17,40 @@ public class TypeError extends AnalysisVisitor {
 
     @Override
     public void buildVisitor() {
+
+
         addVisit(Kind.METHOD_DECL, this::visitMethodDecl);
         addVisit(Kind.RETURN_STMT, this::visitReturnStmt);
         addVisit(Kind.BINARY_EXPR, this::visitBinaryExpr);
+
+        addVisit(Kind.IF_STMT, this::visitIfStmt);
+        addVisit(Kind.WHILE_STMT, this::visitWhileStmt);
+    }
+
+    private Void visitIfStmt(JmmNode jmmNode, SymbolTable symbolTable) {
+        var typeUtils = new TypeUtils(symbolTable);
+
+        var condition = typeUtils.getExprType(jmmNode.getChildren().getFirst());
+
+        if(!typeUtils.isAssignable(condition, TypeUtils.newType(TypeName.BOOLEAN, false))) {
+            var message = "Condition must be of type 'boolean', but found '" + condition.getName() + "'.";
+            addReport(Report.newError(Stage.SEMANTIC, jmmNode.getLine(), jmmNode.getColumn(), message, null));
+        }
+
+        return null;
+    }
+
+    private Void visitWhileStmt(JmmNode jmmNode, SymbolTable symbolTable) {
+        var typeUtils = new TypeUtils(symbolTable);
+
+        var condition = typeUtils.getExprType(jmmNode.getChildren().getFirst());
+
+        if(!typeUtils.isAssignable(condition, TypeUtils.newType(TypeName.BOOLEAN, false))) {
+            var message = "Condition must be of type 'boolean', but found '" + condition.getName() + "'.";
+            addReport(Report.newError(Stage.SEMANTIC, jmmNode.getLine(), jmmNode.getColumn(), message, null));
+        }
+
+        return null;
     }
 
 
