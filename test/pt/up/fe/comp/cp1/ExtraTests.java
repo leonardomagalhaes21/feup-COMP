@@ -51,4 +51,21 @@ public class ExtraTests {
         TestUtils.mustFail(result);
     }
 
+    @Test
+    public void varDeclCantBeVarargs() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/VarDeclCantBeVarargs.jmm"));
+        TestUtils.mustFail(result);
+    }
+
+    @Test
+    public void objectExtendsTest() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/ObjectExtendsTest.jmm"));
+        TestUtils.noErrors(result);
+    }
+
+    @Test
+    public void fieldDeclCantBeVarargs() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/FieldDeclCantBeVarargs.jmm"));
+        TestUtils.mustFail(result);
+    }
 }
