@@ -1,0 +1,8 @@
+class VoidReturnValue {
+    public static void main(String[] args) {}
+
+    public void voidMethod() {
+        // Should fail - void methods shouldn't return values
+        return 5;
+    }
+}

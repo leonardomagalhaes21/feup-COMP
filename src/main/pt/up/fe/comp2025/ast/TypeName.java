@@ -1,4 +1,7 @@
 package pt.up.fe.comp2025.ast;
+
+import pt.up.fe.comp.jmm.analysis.table.Type;
+
 public enum TypeName {
     INT("int"),
     BOOLEAN("boolean"),
@@ -15,5 +18,8 @@ public enum TypeName {
         return name;
     }
 
+    public static Type newType(TypeName typeName, boolean isArray) {
+        return new Type(typeName.getName(), isArray);
+    }
 
 }

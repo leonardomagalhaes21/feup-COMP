@@ -1,0 +1,12 @@
+import io.Double;
+
+class TypeNarrowing {
+    public static void main(String[] args) {
+        Double d;
+        int i;
+
+        d = new Double();
+        // Should fail - can't assign Double to int
+        i = d;
+    }
+}

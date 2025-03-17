@@ -56,7 +56,74 @@ public class TypeError extends AnalysisVisitor {
 
     private Void visitMethodDecl(JmmNode method, SymbolTable table) {
         currentMethod = method;
+
+        String methodName = method.get("name");
+        Type returnType = table.getReturnType(methodName);
+
+        // Skip void methods
+        if (returnType == null || returnType.getName().equals(TypeName.VOID.getName())) {
+            return null;
+        }
+
+        // Check if the method has a complete return path
+        boolean hasCompleteReturnPath = false;
+
+        // Find the method body (statements are typically children of method node)
+        for (JmmNode child : method.getChildren()) {
+            if (hasCompleteReturnPath(child)) {
+                hasCompleteReturnPath = true;
+                break;
+            }
+        }
+
+        if (!hasCompleteReturnPath) {
+            var message = "Missing return statement. Method '" + methodName +
+                    "' must return a value of type '" + returnType.getName() + "' in all execution paths.";
+            addReport(Report.newError(Stage.SEMANTIC, method.getLine(), method.getColumn(), message, null));
+        }
+
         return null;
+    }
+
+    private boolean hasCompleteReturnPath(JmmNode node) {
+        // Direct return statement
+        if (Kind.RETURN_STMT.check(node)) {
+            return true;
+        }
+
+        // If statement with both branches having returns
+        if (Kind.IF_STMT.check(node)) {
+            if (node.getNumChildren() >= 3) {
+                JmmNode thenBranch = node.getChildren().get(1);
+                JmmNode elseBranch = node.getChildren().get(2);
+
+                return hasCompleteReturnPath(thenBranch) && hasCompleteReturnPath(elseBranch);
+            }
+            return false;
+        }
+
+        // Block statement
+        if (Kind.BLOCK_STMT.check(node)) {
+            if (node.getChildren().isEmpty()) {
+                return false;
+            }
+
+            // Check if any child is a return statement
+            for (JmmNode child : node.getChildren()) {
+                if (hasCompleteReturnPath(child)) {
+                    return true;
+                }
+            }
+        }
+
+        // For other node types, check all children
+        for (JmmNode child : node.getChildren()) {
+            if (hasCompleteReturnPath(child)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private Void visitReturnStmt(JmmNode returnStmt, SymbolTable table) {
