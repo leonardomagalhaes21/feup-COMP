@@ -1,0 +1,15 @@
+import io.StringClass;
+
+class StringConcatenation {
+    public static void main(String[] args) {
+        StringClass s1;
+        StringClass s2;
+        StringClass result;
+
+        s1 = new StringClass();
+        s2 = new StringClass();
+
+        // Should pass - string concatenation via imported method
+        result = s1.concat(s2);
+    }
+}

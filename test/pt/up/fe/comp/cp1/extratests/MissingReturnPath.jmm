@@ -1,0 +1,10 @@
+class MissingReturnPath {
+    public static void main(String[] args) {}
+
+    public int methodWithMissingReturn(int a) {
+        if (a > 0) {
+            return 1;
+        }
+        // Missing return in else branch
+    }
+}

@@ -1,0 +1,14 @@
+class BooleanOperations {
+    public static void main(String[] args) {}
+
+    public boolean testBoolOps() {
+        int a;
+        boolean b;
+
+        a = 5;
+        b = true;
+
+        // This should fail - cannot use && with int
+        return a && b;
+    }
+}

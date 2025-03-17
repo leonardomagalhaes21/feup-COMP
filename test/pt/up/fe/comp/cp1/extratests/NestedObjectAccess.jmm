@@ -1,0 +1,13 @@
+import io.SomeClass;
+
+class NestedObjectAccess {
+    public static void main(String[] args) {
+        SomeClass obj1;
+        SomeClass obj2;
+        int result;
+
+        obj1 = new SomeClass();
+        obj2 = obj1.getNestedObject();
+        result = obj2.getValue();
+    }
+}

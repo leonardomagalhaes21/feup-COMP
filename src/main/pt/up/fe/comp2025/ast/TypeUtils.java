@@ -109,9 +109,9 @@ public class TypeUtils {
 
         // Check in imported classes
         for (var importClass : table.getImports()) {
-            // Implement logic to check methods in imported classes
-            // Placeholder: return a valid type if the method is found in the imported class
-            return new Type("importedType", false); // Placeholder
+            if (importClass.equals(funcName)) {
+                return new Type(funcName, false);
+            }
         }
 
         return newType(TypeName.ANY, false);
