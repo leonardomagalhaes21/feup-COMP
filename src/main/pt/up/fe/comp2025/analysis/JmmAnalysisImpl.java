@@ -30,10 +30,7 @@ public class JmmAnalysisImpl implements JmmAnalysis {
         List<AnalysisVisitor> analysisVisitors = new ArrayList<>();
         analysisVisitors.add(new UndeclaredVariable());
         analysisVisitors.add(new TypeError());
-        analysisVisitors.add(new DeclValidator());
         analysisVisitors.add(new ExprValidator());
-        analysisVisitors.add(new LengthExprValidator());
-        analysisVisitors.add(new LiteralValidator());
         analysisVisitors.add(new StmtValidator());
         analysisVisitors.add(new UndefinedMethod());
 

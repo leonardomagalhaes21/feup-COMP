@@ -54,7 +54,6 @@ public enum Kind {
     RETURN_STMT;
 
 
-
     public static final Set<Kind> STATEMENTS = Set.of(
             BLOCK_STMT,
             EXPR_STMT,
@@ -82,7 +81,6 @@ public enum Kind {
     );
 
 
-
     private final String name;
 
     private Kind(String name) {
@@ -107,7 +105,7 @@ public enum Kind {
         var nodeNames = new ArrayList<String>();
         nodeNames.add(firstKind.getNodeName());
 
-        for(Kind kind : otherKinds) {
+        for (Kind kind : otherKinds) {
             nodeNames.add(kind.getNodeName());
         }
 

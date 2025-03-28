@@ -57,6 +57,7 @@ public class ExtraTests {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/ObjectExtendsTest.jmm"));
         TestUtils.noErrors(result);
     }
+
     @Test
     public void fieldDeclCantBeVarargs() {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/FieldDeclCantBeVarargs.jmm"));
@@ -64,83 +65,74 @@ public class ExtraTests {
     }
 
     @Test
-    public void arrayIndexIsTypeIsBool() {
+    public void arrayIndexIsBoolean() {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/ArrayIndexIsTypeIsBool.jmm"));
         TestUtils.mustFail(result);
     }
 
     @Test
-    public void checkLoopConditionsReturns() {
+    public void loopConditionsReturn() {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/CheckLoopConditionsReturns.jmm"));
         TestUtils.mustFail(result);
     }
 
     @Test
-    public void checkLoopConditionsReturns2() {
+    public void loopConditionsReturn2() {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/CheckLoopConditionsReturns2.jmm"));
         TestUtils.mustFail(result);
     }
 
     @Test
-    public void compareDeclaredMethodTypesWithCalledTypes() {
+    public void compareMethodTypes() {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/CompareDeclaredMethodTypesWithCalledTypes.jmm"));
         TestUtils.mustFail(result);
     }
 
     @Test
-    public void generalVarArgsCheck() {
+    public void generalVarArgs() {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/GeneralVarArgsCheck.jmm"));
         TestUtils.noErrors(result);
     }
 
     @Test
-    public void generalVarArgsCheck2() {
+    public void generalVarArgs2() {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/GeneralVarArgsCheck2.jmm"));
         TestUtils.noErrors(result);
     }
 
     @Test
-    public void generalVarArgsCheck3() {
+    public void generalVarArgs3() {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/GeneralVarArgsCheck3.jmm"));
         TestUtils.mustFail(result);
     }
 
     @Test
-    public void methodAcceptVarArgsOrArray() {
+    public void methodAcceptsVarArgsOrArray() {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/MethodAcceptVarArgsOrArray.jmm"));
         TestUtils.mustFail(result);
     }
 
     @Test
-    public void methodDoesNotExistButClassExtends() {
+    public void methodDoesNotExistInExtendedClass() {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/MethodDoesNotExistButClassExtends.jmm"));
         TestUtils.mustFail(result);
     }
 
     @Test
-    public void typeAssignmentsCheck1() {
+    public void typeAssignments1() {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/TypeAssignmentsCheck1.jmm"));
         TestUtils.mustFail(result);
     }
 
     @Test
-    public void typeAssignmentsCheck2() {
+    public void typeAssignments2() {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/TypeAssignmentsCheck2.jmm"));
         TestUtils.mustFail(result);
     }
 
     @Test
-    public void typeAssignmentsCheck3() {
-        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/TypeAssignmentsCheck3.jmm"));
-        TestUtils.mustFail(result);
-    }
-
-    @Test
-    public void verifyIfMethodCalledIsFromImportedClass() {
+    public void methodCallFromImportedClass() {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/VerifyIfMethodCalledIsFromImportedClass.jmm"));
         TestUtils.mustFail(result);
     }
-
-
-
 }

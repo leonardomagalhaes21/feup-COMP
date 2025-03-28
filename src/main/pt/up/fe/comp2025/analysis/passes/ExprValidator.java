@@ -26,6 +26,7 @@ public class ExprValidator extends AnalysisVisitor {
         addVisit(Kind.THIS_EXPR, this::visitThisExpr);
         addVisit(Kind.EXPR, this::visitExpr);
     }
+
     private Void visitArrayExpr(JmmNode arrayExpr, SymbolTable table) {
         TypeUtils typeUtils = new TypeUtils(table);
         var arrayType = typeUtils.getExprType(arrayExpr);
@@ -45,6 +46,7 @@ public class ExprValidator extends AnalysisVisitor {
         }
         return null;
     }
+
     private Void visitArrayAccessExpr(JmmNode arrayAccessExpr, SymbolTable table) {
         TypeUtils typeUtils = new TypeUtils(table);
         JmmNode arrayExpr = arrayAccessExpr.getChildren().getFirst();
@@ -197,7 +199,7 @@ public class ExprValidator extends AnalysisVisitor {
         }
 
         var imports = table.getImports();
-        if(imports.contains(table.getSuper())){
+        if (imports.contains(table.getSuper())) {
             return null;
         }
 
@@ -208,11 +210,9 @@ public class ExprValidator extends AnalysisVisitor {
         }
 
 
-
-
-
         return null;
     }
+
     private Void visitNewArrayExpr(JmmNode newArrayExpr, SymbolTable table) {
         TypeUtils typeUtils = new TypeUtils(table);
 

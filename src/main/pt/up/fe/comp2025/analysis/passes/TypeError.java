@@ -1,6 +1,6 @@
 package pt.up.fe.comp2025.analysis.passes;
 
-import  pt.up.fe.comp.jmm.analysis.table.SymbolTable;
+import pt.up.fe.comp.jmm.analysis.table.SymbolTable;
 import pt.up.fe.comp.jmm.analysis.table.Type;
 import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.comp.jmm.report.Report;
@@ -32,7 +32,7 @@ public class TypeError extends AnalysisVisitor {
 
         var condition = typeUtils.getExprType(jmmNode.getChildren().getFirst());
 
-        if(!typeUtils.isAssignable(condition, TypeUtils.newType(TypeName.BOOLEAN, false))) {
+        if (!typeUtils.isAssignable(condition, TypeUtils.newType(TypeName.BOOLEAN, false))) {
             var message = "Condition must be of type 'boolean', but found '" + condition.getName() + "'.";
             addReport(Report.newError(Stage.SEMANTIC, jmmNode.getLine(), jmmNode.getColumn(), message, null));
         }
@@ -45,7 +45,7 @@ public class TypeError extends AnalysisVisitor {
 
         var condition = typeUtils.getExprType(jmmNode.getChildren().getFirst());
 
-        if(!typeUtils.isAssignable(condition, TypeUtils.newType(TypeName.BOOLEAN, false))) {
+        if (!typeUtils.isAssignable(condition, TypeUtils.newType(TypeName.BOOLEAN, false))) {
             var message = "Condition must be of type 'boolean', but found '" + condition.getName() + "'.";
             addReport(Report.newError(Stage.SEMANTIC, jmmNode.getLine(), jmmNode.getColumn(), message, null));
         }
@@ -152,8 +152,6 @@ public class TypeError extends AnalysisVisitor {
 
         return null;
     }
-
-
 
 
     private Void visitBinaryExpr(JmmNode binaryExpr, SymbolTable table) {
