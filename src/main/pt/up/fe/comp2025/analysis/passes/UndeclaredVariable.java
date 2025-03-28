@@ -61,9 +61,6 @@ public class UndeclaredVariable extends AnalysisVisitor {
                 message,
                 null)
         );
-
         return null;
     }
-
-
 }

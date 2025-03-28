@@ -12,11 +12,7 @@ import pt.up.fe.comp.jmm.report.Stage;
 public class StmtValidator extends AnalysisVisitor {
     @Override
     public void buildVisitor() {
-
         addVisit(Kind.ASSIGN_STMT, this::visitAssignStmt);
-        addVisit(Kind.BLOCK_STMT, this::visitBlockStmt);
-        addVisit(Kind.EXPR_STMT, this::visitExprStmt);
-        addVisit(Kind.ARRAY_ASSIGN_STMT, this::visitArrayAssignStmt);
     }
 
     private Void visitAssignStmt(JmmNode assignStmt, SymbolTable table) {
@@ -55,21 +51,4 @@ public class StmtValidator extends AnalysisVisitor {
 
         return null;
     }
-
-
-    private Void visitBlockStmt(JmmNode blockStmt, SymbolTable table) {
-        // Implement validation logic for block statements
-        return null;
-    }
-
-    private Void visitExprStmt(JmmNode exprStmt, SymbolTable table) {
-        // Implement validation logic for expression statements
-        return null;
-    }
-
-    private Void visitArrayAssignStmt(JmmNode arrayAssignStmt, SymbolTable table) {
-        // Implement validation logic for array assignment statements
-        return null;
-    }
-
 }

@@ -102,19 +102,19 @@ public class TypeUtils {
 
         var varName = varExpr.get("name");
 
-        for (var field: fields) {
+        for (var field : fields) {
             if (field.getName().equals(varName)) {
                 return field.getType();
             }
         }
 
-        for (var param: params) {
+        for (var param : params) {
             if (param.getName().equals(varName)) {
                 return param.getType();
             }
         }
 
-        for (var local: locals) {
+        for (var local : locals) {
             if (local.getName().equals(varName)) {
                 return local.getType();
             }
@@ -127,7 +127,7 @@ public class TypeUtils {
         var funcName = funcExpr.get("methodname");
         var methods = table.getMethods();
 
-        for (var method: methods) {
+        for (var method : methods) {
             if (method.equals(funcName)) {
                 return table.getReturnType(method);
             }

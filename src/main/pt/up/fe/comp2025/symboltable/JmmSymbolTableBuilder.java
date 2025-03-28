@@ -133,6 +133,7 @@ public class JmmSymbolTableBuilder {
                 node.get("name")
         );
     }
+
     private static Type parseType(JmmNode node) {
         return new Type(
                 node.get("name"),

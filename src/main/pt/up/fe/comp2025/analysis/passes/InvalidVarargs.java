@@ -26,7 +26,7 @@ public class InvalidVarargs extends AnalysisVisitor {
      * If so, add an error report.
      *
      * @param classDecl The class declaration
-     * @param table The symbol table
+     * @param table     The symbol table
      */
     private Void visitClassDecl(JmmNode classDecl, SymbolTable table) {
         var fields = classDecl.getChildren(Kind.VAR_DECL);
@@ -54,7 +54,7 @@ public class InvalidVarargs extends AnalysisVisitor {
      * If so, add an error report.
      *
      * @param methodDecl The method declaration
-     * @param table The symbol table
+     * @param table      The symbol table
      */
     private Void visitMethodDecl(JmmNode methodDecl, SymbolTable table) {
         var localVariables = methodDecl.getChildren(Kind.VAR_DECL);
