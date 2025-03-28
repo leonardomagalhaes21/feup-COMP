@@ -1,0 +1,21 @@
+import W;
+
+class CompareDeclaredMethodTypesWithCalledTypes{
+    //When calling methods of the class declared in the code, verify if the types of arguments of the call are compatible with the types in the method declaration
+    public int test() {
+        int a = 1;
+        return a;
+    }
+
+    public int test2() {
+        int a = 1;
+        W w = new W();
+        return w.foo(a);
+    }
+
+    public static void main(String[] args) {
+        CompareDeclaredMethodTypesWithCalledTypes c = new CompareDeclaredMethodTypesWithCalledTypes();
+        bool w = c.test();
+        int a = c.test2();
+    }
+}

@@ -1,0 +1,11 @@
+import A;
+
+class GeneralVarArgsCheck3{
+    // Variable declarations, field declarations and method returns cannot be vararg
+
+    int... c = {1, 2, 3};
+    public int testVarArgs(int a, int... b) {
+        int... w = {1, 2, 3, 5};
+        return b;
+    }
+}

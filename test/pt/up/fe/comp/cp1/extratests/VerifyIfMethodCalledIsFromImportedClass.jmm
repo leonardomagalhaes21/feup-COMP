@@ -1,0 +1,8 @@
+import Algorithms;
+
+class VerifyIfMethodCalledIsFromImportedClass {
+    public static void main(String[] args) {
+        Algorithms alg = new Algorithms();
+        alg.sort();
+    }
+}

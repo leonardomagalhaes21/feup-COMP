@@ -1,0 +1,11 @@
+import D;
+import E;
+
+class TypeAssignmentsChecks3 {
+    public static void main(String[] args) {
+        int[] a;
+        int[] b;
+        a = 2.0;
+        b = true;
+    }
+}

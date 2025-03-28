@@ -1,0 +1,14 @@
+import A;
+
+class CheckLoopConditionsReturns2 {
+    // Test if the if() conditions or while() conditions are boolean
+
+    public static void main(String[] args) {
+
+        while(2+4){
+            int a;
+            a = 3;
+        }
+        return a;
+    }
+}

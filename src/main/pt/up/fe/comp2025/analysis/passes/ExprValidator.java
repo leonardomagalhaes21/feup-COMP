@@ -1,6 +1,7 @@
 package pt.up.fe.comp2025.analysis.passes;
 
 import pt.up.fe.comp.jmm.analysis.table.SymbolTable;
+import pt.up.fe.comp.jmm.analysis.table.Type;
 import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.comp2025.analysis.AnalysisVisitor;
 import pt.up.fe.comp2025.ast.Kind;
@@ -175,10 +176,10 @@ public class ExprValidator extends AnalysisVisitor {
         JmmNode objectExpr = memberExpr.getChildren().getFirst();
         String memberName = memberExpr.get("member");
 
-        // Obter o tipo da expressão do objeto
+        // Get the type of the object expression
         var objectType = typeUtils.getExprType(objectExpr);
 
-        // Verificar se o membro existe na classe ou suas superclasses
+        // Verify if the member exists in the object type
         if (!table.getMethods().contains(memberName) && table.getFields().stream().noneMatch(field -> field.getName().equals(memberName))) {
             var message = "Member '" + memberName + "' does not exist in class '" + objectType.getName() + "'.";
             addReport(Report.newError(Stage.SEMANTIC, memberExpr.getLine(), memberExpr.getColumn(), message, null));
@@ -212,12 +213,53 @@ public class ExprValidator extends AnalysisVisitor {
 
         return null;
     }
-    private Void visitNewArrayExpr(JmmNode newArrayExpr, SymbolTable table){
+    private Void visitNewArrayExpr(JmmNode newArrayExpr, SymbolTable table) {
+        TypeUtils typeUtils = new TypeUtils(table);
+
+        // Check if the size expression is of type int
+        if (newArrayExpr.getNumChildren() > 0) {
+            JmmNode sizeExpr = newArrayExpr.getChildren().getFirst();
+            Type sizeType = typeUtils.getExprType(sizeExpr);
+
+            if (!sizeType.getName().equals(TypeName.INT.getName())) {
+                var message = "Array size expression must be of type 'int', but found '" + sizeType.getName() + "'.";
+                addReport(Report.newError(
+                        Stage.SEMANTIC,
+                        sizeExpr.getLine(),
+                        sizeExpr.getColumn(),
+                        message,
+                        null)
+                );
+            }
+        }
+
         return null;
     }
 
     private Void visitParenExpr(JmmNode parenExpr, SymbolTable table) {
-        // Implement validation logic for parenthesis expressions
+
+        // If the parenthesized expression has no children, that's an error
+        if (parenExpr.getNumChildren() == 0) {
+            var message = "Empty parenthesized expression.";
+            addReport(Report.newError(
+                    Stage.SEMANTIC,
+                    parenExpr.getLine(),
+                    parenExpr.getColumn(),
+                    message,
+                    null)
+            );
+        } else if (parenExpr.getNumChildren() > 1) {
+            // If there's more than one child, that's also an error
+            var message = "Multiple expressions inside parentheses.";
+            addReport(Report.newError(
+                    Stage.SEMANTIC,
+                    parenExpr.getLine(),
+                    parenExpr.getColumn(),
+                    message,
+                    null)
+            );
+        }
+
         return null;
     }
 
@@ -227,7 +269,7 @@ public class ExprValidator extends AnalysisVisitor {
 
         var exprType = typeUtils.getExprType(expr);
 
-        // Verificar se o tipo da expressão é compatível com a operação unária
+        // Verify if the expression is of type 'int' or 'boolean'
         if (!exprType.getName().equals(TypeName.INT.getName()) && !exprType.getName().equals(TypeName.BOOLEAN.getName())) {
             var message = "Unary expression must be of type 'int' or 'boolean', but found '" + exprType.getName() + "'.";
             addReport(Report.newError(
@@ -244,10 +286,58 @@ public class ExprValidator extends AnalysisVisitor {
     }
 
     private Void visitThisExpr(JmmNode thisExpr, SymbolTable table) {
-        // Implement validation logic for 'this' expressions
+        // Check if 'this' is being used in a static context
+        boolean isInStaticMethod = thisExpr.getAncestor(Kind.METHOD_DECL)
+                .map(method -> method.getOptional("isStatic")
+                        .map(Boolean::parseBoolean)
+                        .orElse(false))
+                .orElse(false);
+
+        if (isInStaticMethod) {
+            var message = "Cannot use 'this' in a static context.";
+            addReport(Report.newError(
+                    Stage.SEMANTIC,
+                    thisExpr.getLine(),
+                    thisExpr.getColumn(),
+                    message,
+                    null)
+            );
+        }
+
         return null;
     }
+
     private Void visitExpr(JmmNode expr, SymbolTable table) {
+        // For generic expressions, validate that the expression type is valid
+        TypeUtils typeUtils = new TypeUtils(table);
+
+        try {
+            Type exprType = typeUtils.getExprType(expr);
+
+            // If the type is unknown or invalid, report an error
+            if (exprType.getName().equals(TypeName.ANY.getName()) &&
+                    !expr.getChildren().isEmpty()) {
+                var message = "Unable to determine type of expression.";
+                addReport(Report.newError(
+                        Stage.SEMANTIC,
+                        expr.getLine(),
+                        expr.getColumn(),
+                        message,
+                        null)
+                );
+            }
+        } catch (Exception e) {
+            // If an exception occurs during type determination, report it
+            var message = "Error analyzing expression: " + e.getMessage();
+            addReport(Report.newError(
+                    Stage.SEMANTIC,
+                    expr.getLine(),
+                    expr.getColumn(),
+                    message,
+                    null)
+            );
+        }
+
         return null;
     }
 }

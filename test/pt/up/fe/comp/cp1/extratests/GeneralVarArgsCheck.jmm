@@ -1,0 +1,8 @@
+import A;
+
+class GeneralVarArgsCheck {
+    // A vararg type when used, must always be the type of the last parameter in a method declaration. Also, only one parameter can be vararg, but the method can have several parameters
+    public int testVarArgs(int a, int... b) {
+        return 1;
+    }
+}
