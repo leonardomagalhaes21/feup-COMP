@@ -51,11 +51,37 @@ public class TypeUtils {
             case VAR_REF_EXPR -> getVarExprType(expr);
             case FUNC_EXPR -> getFuncExprType(expr);
             case NEW_EXPR -> getNewExprType(expr);
-            case ARRAY_EXPR, NEW_ARRAY_EXPR -> newType(TypeName.INT, true);   // Arrays are of type int[]
+            case ARRAY_EXPR, NEW_ARRAY_EXPR -> newType(TypeName.INT, true);
             case INTEGER_LITERAL, ARRAY_ACCESS_EXPR -> newType(TypeName.INT, false);
             case BOOLEAN_LITERAL -> newType(TypeName.BOOLEAN, false);
+            case THIS_EXPR -> new Type(table.getClassName(), false);
+            case MEMBER_EXPR -> getMemberExprType(expr);
             default -> throw new UnsupportedOperationException("Unknown expression kind: " + kind);
         };
+    }
+
+    private Type getMemberExprType(JmmNode memberExpr) {
+        // If the member expression does not have a member attribute, return ANY
+        if (!memberExpr.hasAttribute("member")) {
+            return newType(TypeName.ANY, false);
+        }
+
+        var memberName = memberExpr.get("member");
+        var objectExpr = memberExpr.getChildren().get(0);
+        var objectType = getExprType(objectExpr);
+
+        // If this is a field access on the current class or imported class
+        if (objectType.getName().equals(table.getClassName())) {
+            // Check fields of the current class
+            for (var field : table.getFields()) {
+                if (field.getName().equals(memberName)) {
+                    return field.getType();
+                }
+            }
+        }
+
+        // If we can't determine the type, return ANY
+        return newType(TypeName.ANY, false);
     }
 
     private Type getBinExprType(JmmNode binaryExpr) {

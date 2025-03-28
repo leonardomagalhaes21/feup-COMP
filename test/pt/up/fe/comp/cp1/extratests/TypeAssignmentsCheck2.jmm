@@ -1,0 +1,10 @@
+import D;
+import E;
+
+class TypeAssignmentsChecks2 {
+    public static void main(String[] args) {
+        bool a;
+        a = 1;
+
+    }
+}

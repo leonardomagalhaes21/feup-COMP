@@ -11,7 +11,6 @@ import pt.up.fe.comp2025.ast.TypeUtils;
 public class UndefinedMethod extends AnalysisVisitor {
     @Override
     public void buildVisitor() {
-        // Implement the visitor logic
         addVisit(Kind.FUNC_EXPR, this::visitFuncExpr);
     }
 

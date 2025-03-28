@@ -1,0 +1,12 @@
+import A;
+
+class MethodDoesNotExistButClassExtends extends A {
+    // In case the method does not exist, verify if the class extends an imported class and report an error if it does not.
+
+    A newvar;
+    newvar = new A();
+    public static void main(String[] args) {
+        newvar.foo();
+    }
+
+}

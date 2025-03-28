@@ -1,0 +1,17 @@
+class MethodAcceptVarArgsOrArray{
+
+    //Method que aceita numero variáveis de argumentos necessita de ser o último argumento
+
+    public int method(int... a){
+        return a[2];
+    }
+
+    public static void main(String[] args){
+        int[] c;
+        c = [1,2,3,4];
+        int b;
+        b = method(c);
+        int w;
+        w = method(1,2,3);
+    }
+}

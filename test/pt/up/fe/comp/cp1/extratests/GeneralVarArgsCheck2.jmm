@@ -1,0 +1,6 @@
+class GeneralVarArgsCheck2 {
+
+    public int varr(int... a, int... b) {
+        return 0;
+    }
+}

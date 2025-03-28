@@ -1,0 +1,10 @@
+import A.bdfh;
+
+class ArrayAccessOnBools{
+
+    public static void main(String[] args){
+        boolean a;
+        a= true;
+        return a[0];
+    }
+}

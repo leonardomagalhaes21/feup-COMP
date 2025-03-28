@@ -1,0 +1,10 @@
+import D;
+import E;
+
+class TypeAssignmentsChecks1 {
+    public static void main(String[] args) {
+        int a;
+        a = true;
+
+    }
+}
