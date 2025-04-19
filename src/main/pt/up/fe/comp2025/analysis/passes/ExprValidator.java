@@ -25,6 +25,26 @@ public class ExprValidator extends AnalysisVisitor {
         addVisit(Kind.UNARY_EXPR, this::visitUnaryExpr);
         addVisit(Kind.THIS_EXPR, this::visitThisExpr);
         addVisit(Kind.EXPR, this::visitExpr);
+        addVisit(Kind.ARRAY_LENGTH_EXPR, this::visitArrayLengthExpr);
+    }
+
+    private Void visitArrayLengthExpr(JmmNode arrayLengthExpr, SymbolTable table) {
+        TypeUtils typeUtils = new TypeUtils(table);
+        var array = arrayLengthExpr.getChildren().getFirst();
+        var arrayType = typeUtils.getExprType(array);
+
+        if (!arrayType.isArray()) {
+            var message = "The 'length' method can only be called on arrays.";
+            addReport(Report.newError(
+                    Stage.SEMANTIC,
+                    arrayLengthExpr.getLine(),
+                    arrayLengthExpr.getColumn(),
+                    message,
+                    null)
+            );
+        }
+
+        return null;
     }
 
     private Void visitArrayExpr(JmmNode arrayExpr, SymbolTable table) {
@@ -85,18 +105,7 @@ public class ExprValidator extends AnalysisVisitor {
     private Void visitFuncExpr(JmmNode funcExpr, SymbolTable table) {
         var methodName = funcExpr.get("methodname");
 
-        // Special case for length method on arrays
-        if ("length".equals(methodName) && funcExpr.getNumChildren() > 0) {
-            TypeUtils typeUtils = new TypeUtils(table);
-            var caller = funcExpr.getChildren().getFirst();
-            var callerType = typeUtils.getExprType(caller);
 
-            if (!callerType.isArray()) {
-                var message = "The 'length' method can only be called on arrays.";
-                addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
-            }
-            return null;
-        }
 
         // Check if the method exists in the current class
         if (table.getMethods().contains(methodName)) {
@@ -341,5 +350,3 @@ public class ExprValidator extends AnalysisVisitor {
         return null;
     }
 }
-
-

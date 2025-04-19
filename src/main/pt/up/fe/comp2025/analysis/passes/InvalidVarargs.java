@@ -7,6 +7,9 @@ import pt.up.fe.comp.jmm.report.Stage;
 import pt.up.fe.comp2025.analysis.AnalysisVisitor;
 import pt.up.fe.comp2025.ast.Kind;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * A visitor that checks for incorrect usage of varargs.
  */
@@ -19,6 +22,21 @@ public class InvalidVarargs extends AnalysisVisitor {
     public void buildVisitor() {
         addVisit(Kind.CLASS_DECL, this::visitClassDecl);
         addVisit(Kind.METHOD_DECL, this::visitMethodDecl);
+        addVisit(Kind.IMPORT_DECL, this::visitImportDeclaration);
+    }
+    private final Set<String> seenImports = new HashSet<>();
+
+    private Void visitImportDeclaration(JmmNode importNode, SymbolTable table) {
+        String importName = importNode.get("ID");
+
+        if (seenImports.contains(importName)) {
+            var message = "Duplicate import detected: '" + importName + "'.";
+            addReport(Report.newError(Stage.SEMANTIC, importNode.getLine(), importNode.getColumn(), message, null));
+        } else {
+            seenImports.add(importName);
+        }
+
+        return null;
     }
 
     /**
@@ -60,6 +78,7 @@ public class InvalidVarargs extends AnalysisVisitor {
         var localVariables = methodDecl.getChildren(Kind.VAR_DECL);
         var returnType = methodDecl.getChildren(Kind.TYPE).getFirst();
 
+        // Check local variables for varargs
         for (var localVariable : localVariables) {
             var localVariableType = localVariable.getChildren(Kind.TYPE).getFirst();
 
@@ -75,6 +94,7 @@ public class InvalidVarargs extends AnalysisVisitor {
             }
         }
 
+        // Check return type for varargs
         if (Boolean.parseBoolean(returnType.get("isVarargs"))) {
             var message = "Method return type cannot be varargs.";
             addReport(Report.newError(
@@ -86,9 +106,26 @@ public class InvalidVarargs extends AnalysisVisitor {
             );
         }
 
-        // Check if there is just one varargs parameter and if it is the last parameter
+        // Get parameters and check for duplicates
         var parameters = methodDecl.getChild(1).getChildren(Kind.PARAM);
+        Set<String> paramNames = new HashSet<>();
 
+        // Check for duplicate parameters
+        for (var parameter : parameters) {
+            String paramName = parameter.get("name");
+            if (!paramNames.add(paramName)) {
+                var message = "Duplicate parameter name '" + paramName + "'.";
+                addReport(Report.newError(
+                        Stage.SEMANTIC,
+                        parameter.getLine(),
+                        parameter.getColumn(),
+                        message,
+                        null)
+                );
+            }
+        }
+
+        // Check varargs - only one allowed and must be last
         boolean hasVarargs = false;
         boolean isLast = true;
 
@@ -117,7 +154,7 @@ public class InvalidVarargs extends AnalysisVisitor {
             }
         }
 
-        if (!isLast) {
+        if (hasVarargs && !isLast) {
             var message = "Varargs parameter must be the last parameter.";
             addReport(Report.newError(
                     Stage.SEMANTIC,

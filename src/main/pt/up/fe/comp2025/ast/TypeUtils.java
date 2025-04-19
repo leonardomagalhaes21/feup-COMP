@@ -128,6 +128,10 @@ public class TypeUtils {
         var funcName = funcExpr.get("methodname");
         var methods = table.getMethods();
 
+        if (funcName.equals("length")) {
+            return new Type("int", false);
+        }
+
         for (var method : methods) {
             if (method.equals(funcName)) {
                 return table.getReturnType(method);

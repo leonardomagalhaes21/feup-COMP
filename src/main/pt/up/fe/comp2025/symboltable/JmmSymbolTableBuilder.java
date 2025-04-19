@@ -10,10 +10,7 @@ import pt.up.fe.comp2025.ast.TypeName;
 import pt.up.fe.comp2025.ast.TypeUtils;
 import pt.up.fe.specs.util.SpecsCheck;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static pt.up.fe.comp2025.ast.Kind.*;
 
@@ -80,10 +77,22 @@ public class JmmSymbolTableBuilder {
 
         for (var method : classDecl.getChildren("Method")) {
             var methodName = method.get("name");
-            var params = method.getChildren("Parameters").stream()
+            var params = new ArrayList<Symbol>();
+            var paramNames = new HashSet<String>();
+
+            for (var paramNode : method.getChildren("Parameters").stream()
                     .flatMap(paramsNode -> paramsNode.getChildren("Parameter").stream())
-                    .map(param -> new Symbol(parseType(param.getObject("typename", JmmNode.class)), param.get("name")))
-                    .toList();
+                    .toList()) {
+
+                var paramName = paramNode.get("name");
+                if (paramNames.contains(paramName)) {
+                    reports.add(newError(paramNode, "Duplicate parameter name: '" + paramName + "' in method '" + methodName + "'."));
+                } else {
+                    paramNames.add(paramName);
+                    params.add(new Symbol(parseType(paramNode.getObject("typename", JmmNode.class)), paramName));
+                }
+            }
+
             paramsMap.put(methodName, params);
         }
 
