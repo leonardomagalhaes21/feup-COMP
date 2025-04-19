@@ -97,7 +97,7 @@ public class ExtraTests {
     @Test
     public void generalVarArgs2() {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/GeneralVarArgsCheck2.jmm"));
-        TestUtils.noErrors(result);
+        TestUtils.mustFail(result);
     }
 
     @Test
