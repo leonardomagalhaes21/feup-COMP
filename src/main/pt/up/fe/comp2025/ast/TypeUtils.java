@@ -56,6 +56,7 @@ public class TypeUtils {
             case BOOLEAN_LITERAL -> newType(TypeName.BOOLEAN, false);
             case THIS_EXPR -> new Type(table.getClassName(), false);
             case MEMBER_EXPR -> getMemberExprType(expr);
+            case UNARY_EXPR -> getUnaryExprType(expr);
             default -> throw new UnsupportedOperationException("Unknown expression kind: " + kind);
         };
     }
@@ -178,6 +179,9 @@ public class TypeUtils {
         return new Type(className, false);
     }
 
+    private Type getUnaryExprType(JmmNode unaryExpr) {
+        return getExprType(unaryExpr.getChildren().getFirst());
+    }
     public boolean isAssignable(Type left, Type right) {
         if (left == null || right == null) return false;
         if (left.isArray() || right.isArray()) {
