@@ -1,0 +1,10 @@
+// LengthAsVariable.jmm - Should pass
+class LengthAsVariable {
+    public static void main(String[] args) {}
+
+    public int testLength() {
+        int length; // Valid: length as variable name
+        length = 10;
+        return length;
+    }
+}

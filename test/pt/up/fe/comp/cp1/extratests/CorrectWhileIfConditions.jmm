@@ -1,0 +1,29 @@
+// CorrectWhileIfConditions.jmm - Should pass without errors
+class CorrectWhileIfConditions {
+    public static void main(String[] args) {}
+
+    public boolean testConditions(boolean condition) {
+        boolean result;
+
+        if (condition) {
+            result = true;
+        } else {
+            result = false;
+        }
+
+        while (condition) {
+            if (condition) {
+                while (condition) {
+                    // Valid: Nested while loop with the same condition
+                    result = true;
+                }
+                result = true;
+            } else {
+                result = false;
+            }
+            condition = false;
+        }
+
+        return result;
+    }
+}

@@ -1,0 +1,8 @@
+// DuplicateParameters.jmm - Should fail
+class DuplicateParameters {
+    public static void main(String[] args) {}
+
+    public int test(int a, int a) { // Error: Duplicate parameter
+        return a;
+    }
+}

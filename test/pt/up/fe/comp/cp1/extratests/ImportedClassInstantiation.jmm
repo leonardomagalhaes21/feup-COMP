@@ -1,0 +1,14 @@
+// ImportedClassInstantiation.jmm - Should pass
+import java.util.Scanner;
+
+class ImportedClassInstantiation {
+    public Scanner scanner;
+
+    public static void main(String[] args) {}
+
+    public Scanner testImport() {
+        Scanner scanner;
+        scanner = new Scanner();
+        return scanner;
+    }
+}

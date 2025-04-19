@@ -20,6 +20,7 @@ public enum Kind {
     TYPE,
     METHOD_DECL,
     PARAM,
+    PARAMETERS,
     STMT,
     EXPR,
     BINARY_EXPR,

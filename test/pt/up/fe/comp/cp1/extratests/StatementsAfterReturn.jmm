@@ -1,0 +1,9 @@
+// StatementsAfterReturn.jmm - Should fail
+class StatementsAfterReturn {
+    public static void main(String[] args) {}
+
+    public int testStatementsAfterReturn() {
+        return 1;
+        return 2; // Error: Statement after return
+    }
+}

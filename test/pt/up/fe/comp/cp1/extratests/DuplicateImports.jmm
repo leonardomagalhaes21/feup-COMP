@@ -1,0 +1,7 @@
+// DuplicateImports.jmm - Should fail
+import java.util.Scanner;
+import java.util.Scanner;
+
+class DuplicateImports {
+    public static void main(String[] args) {}
+}

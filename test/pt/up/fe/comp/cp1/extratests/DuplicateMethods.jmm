@@ -1,0 +1,12 @@
+// DuplicateMethods.jmm - Should fail
+class DuplicateMethods {
+    public static void main(String[] args) {}
+
+    public int test(int a) {
+        return a;
+    }
+
+    public int test(int a) { // Error: Duplicate method
+        return a + 1;
+    }
+}

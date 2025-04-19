@@ -135,4 +135,89 @@ public class ExtraTests {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/VerifyIfMethodCalledIsFromImportedClass.jmm"));
         TestUtils.mustFail(result);
     }
+
+
+
+
+
+
+
+    @Test
+    public void testCorrectWhileIfConditions() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/CorrectWhileIfConditions.jmm"));
+        TestUtils.noErrors(result);
+    }
+
+    @Test
+    public void testNegateIntToBool() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/NegateIntToBool.jmm"));
+        TestUtils.mustFail(result);
+    }
+
+    @Test
+    public void testNegateBoolToBool() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/NegateBoolToBool.jmm"));
+        TestUtils.noErrors(result);
+    }
+
+    @Test
+    public void testDuplicateImports() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/DuplicateImports.jmm"));
+        TestUtils.mustFail(result);
+    }
+
+    @Test
+    public void testDuplicateVariables() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/DuplicateVariables.jmm"));
+        TestUtils.mustFail(result);
+    }
+
+    @Test
+    public void testDuplicateMethods() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/DuplicateMethods.jmm"));
+        TestUtils.mustFail(result);
+    }
+
+    @Test
+    public void testDuplicateParameters() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/DuplicateParameters.jmm"));
+        TestUtils.mustFail(result);
+    }
+
+    @Test
+    public void testLengthAsVariable() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/LengthAsVariable.jmm"));
+        TestUtils.noErrors(result);
+    }
+
+    @Test
+    public void testMultipleReturns() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/MultipleReturns.jmm"));
+        TestUtils.mustFail(result);
+    }
+
+    @Test
+    public void testStatementsAfterReturn() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/StatementsAfterReturn.jmm"));
+        TestUtils.mustFail(result);
+    }
+
+    @Test
+    public void testThisAsArgument() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/ThisAsArgument.jmm"));
+        TestUtils.noErrors(result);
+    }
+
+    @Test
+    public void testImportedClassInstantiation() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/ImportedClassInstantiation.jmm"));
+        TestUtils.noErrors(result);
+    }
+
+    @Test
+    public void testVoidField() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/VoidField.jmm"));
+        TestUtils.mustFail(result);
+    }
+
 }

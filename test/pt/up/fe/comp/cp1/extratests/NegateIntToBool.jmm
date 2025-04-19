@@ -1,0 +1,11 @@
+// NegateIntToBool.jmm - Should fail
+class NegateIntToBool {
+    public static void main(String[] args) {}
+
+    public boolean testNegation(int value) {
+        boolean result;
+        // Error: Cannot negate an integer and assign to boolean
+        result = !value;
+        return result;
+    }
+}

@@ -1,0 +1,11 @@
+// NegateBoolToBool.jmm - Should pass
+class NegateBoolToBool {
+    public static void main(String[] args) {}
+
+    public boolean testNegation(boolean value) {
+        boolean result;
+        // Valid: Negating a boolean
+        result = !value;
+        return result;
+    }
+}

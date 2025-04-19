@@ -1,0 +1,6 @@
+// VoidField.jmm - Should fail
+class VoidField {
+    void field; // Error: void field
+
+    public static void main(String[] args) {}
+}

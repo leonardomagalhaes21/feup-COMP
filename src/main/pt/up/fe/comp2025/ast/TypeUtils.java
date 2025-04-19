@@ -190,4 +190,8 @@ public class TypeUtils {
 
         return left.equals(right) || left.getName().equals("any") || right.getName().equals("any");
     }
+    public static boolean isBoolean(Type type) {
+        return type.getName().equals("boolean") && !type.isArray();
+    }
+
 }
