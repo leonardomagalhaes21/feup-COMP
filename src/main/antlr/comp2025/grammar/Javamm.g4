@@ -19,7 +19,6 @@ THIS: 'this';
 WHILE: 'while';
 IF: 'if';
 ELSE: 'else';
-LENGTH: 'length';
 INT: 'int';
 STRING: 'String';
 ELLIPSIS: '...';
@@ -85,7 +84,6 @@ varDecl
 expr
     : '(' expr ')'                      # ParenExpr
     | '!' expr                          # UnaryExpr
-    | expr '.' methodname='length'      #ArrayLengthExpr
     | expr '.' methodname=ID            # FuncExpr
     | expr '.' methodname=ID
       '(' (expr (',' expr)* )? ')'      # FuncExpr

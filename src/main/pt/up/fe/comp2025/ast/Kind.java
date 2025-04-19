@@ -52,8 +52,7 @@ public enum Kind {
     WHILE_STMT,
     ASSIGN_STMT,
     ARRAY_ASSIGN_STMT,
-    RETURN_STMT,
-    ARRAY_LENGTH_EXPR;
+    RETURN_STMT;
 
 
     public static final Set<Kind> STATEMENTS = Set.of(

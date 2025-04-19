@@ -6,7 +6,7 @@ class ThisAsArgument {
         return someMethod(this);
     }
 
-    public int someMethod(this) {
+    public int someMethod(ThisAsArgument obj) {
         return 1;
     }
 }

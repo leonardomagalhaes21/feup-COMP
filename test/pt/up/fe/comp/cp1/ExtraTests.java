@@ -220,4 +220,10 @@ public class ExtraTests {
         TestUtils.mustFail(result);
     }
 
+    @Test
+    public void testLengthAsMethod() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/LengthAsMethod.jmm"));
+        TestUtils.mustFail(result);
+    }
+
 }

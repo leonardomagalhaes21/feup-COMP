@@ -1,0 +1,9 @@
+class LengthAsMethod {
+    public static void main(String[] args) {}
+
+    public int testDuplicates() {
+        int x;
+        x.length;
+        return 0;
+    }
+}

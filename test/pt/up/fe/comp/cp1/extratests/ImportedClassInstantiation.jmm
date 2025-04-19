@@ -2,7 +2,7 @@
 import java.util.Scanner;
 
 class ImportedClassInstantiation {
-    public Scanner scanner;
+    Scanner scanner;
 
     public static void main(String[] args) {}
 
