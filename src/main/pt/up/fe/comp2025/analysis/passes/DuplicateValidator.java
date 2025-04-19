@@ -12,6 +12,8 @@ import java.util.Set;
 
 public class DuplicateValidator extends AnalysisVisitor {
 
+    private final Set<String> seenImports = new HashSet<>();
+
     @Override
     public void buildVisitor() {
         addVisit(Kind.METHOD_DECL, this::visitMethodDecl);
@@ -84,23 +86,69 @@ public class DuplicateValidator extends AnalysisVisitor {
             }
         }
 
+        // Check varargs
+        var parameters = methodDecl.getChild(1).getChildren(Kind.PARAM);
+        Set<String> paramNames = new HashSet<>();
+        boolean hasVarargs = false;
+        boolean isLast = true;
+
+        JmmNode parameter = null;
+        for (var i = 0; i < parameters.size(); i++) {
+            parameter = parameters.get(i);
+            var parameterType = parameter.getChildren(Kind.TYPE).getFirst();
+
+            if (!paramNames.add(parameter.get("name"))) {
+                var message = "Duplicate parameter name '" + parameter.get("name") + "'.";
+                addReport(Report.newError(
+                        Stage.SEMANTIC,
+                        parameter.getLine(),
+                        parameter.getColumn(),
+                        message,
+                        null)
+                );
+            }
+
+            if (Boolean.parseBoolean(parameterType.get("isVarargs"))) {
+                if (hasVarargs) {
+                    var message = "Only one varargs parameter is allowed.";
+                    addReport(Report.newError(
+                            Stage.SEMANTIC,
+                            parameter.getLine(),
+                            parameter.getColumn(),
+                            message,
+                            null)
+                    );
+                    return null;
+                }
+
+                if (i != parameters.size() - 1) isLast = false;
+
+                hasVarargs = true;
+            }
+        }
+
+        if (hasVarargs && !isLast) {
+            var message = "Varargs parameter must be the last parameter.";
+            addReport(Report.newError(
+                    Stage.SEMANTIC,
+                    parameter.getLine(),
+                    parameter.getColumn(),
+                    message,
+                    null)
+            );
+        }
+
         return null;
     }
 
     private Void visitImportDecl(JmmNode importDecl, SymbolTable table) {
-        Set<String> importNames = new HashSet<>();
+        String importName = importDecl.get("ID");
 
-        for (var importName : table.getImports()) {
-            if (!importNames.add(importName)) {
-                var message = "Duplicate import '" + importName + "'.";
-                addReport(Report.newError(
-                        Stage.SEMANTIC,
-                        importDecl.getLine(),
-                        importDecl.getColumn(),
-                        message,
-                        null
-                ));
-            }
+        if (seenImports.contains(importName)) {
+            var message = "Duplicate import detected: '" + importName + "'.";
+            addReport(Report.newError(Stage.SEMANTIC, importDecl.getLine(), importDecl.getColumn(), message, null));
+        } else {
+            seenImports.add(importName);
         }
 
         return null;
