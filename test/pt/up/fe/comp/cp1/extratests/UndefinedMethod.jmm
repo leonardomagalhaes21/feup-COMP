@@ -1,0 +1,7 @@
+class Test {
+    public int func(int a) {
+        int b;
+        b = undefinedMethod(a);
+        return b;
+    }
+}

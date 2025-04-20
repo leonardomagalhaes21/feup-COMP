@@ -226,4 +226,16 @@ public class ExtraTests {
         TestUtils.mustFail(result);
     }
 
+    @Test
+    public void testUndefinedMethod() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/UndefinedMethod.jmm"));
+        TestUtils.mustFail(result);
+    }
+
+    @Test
+    public void testDefinedMethod() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/DefinedMethod.jmm"));
+        TestUtils.noErrors(result);
+    }
+
 }

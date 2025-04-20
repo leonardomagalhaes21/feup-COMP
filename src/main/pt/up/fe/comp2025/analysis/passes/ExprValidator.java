@@ -23,6 +23,7 @@ public class ExprValidator extends AnalysisVisitor {
         addVisit(Kind.NEW_ARRAY_EXPR, this::visitNewArrayExpr);
         addVisit(Kind.PAREN_EXPR, this::visitParenExpr);
         addVisit(Kind.UNARY_EXPR, this::visitUnaryExpr);
+        addVisit(Kind.METHOD_CALL_EXPR, this::visitMethodCallExpr);
         addVisit(Kind.THIS_EXPR, this::visitThisExpr);
         addVisit(Kind.EXPR, this::visitExpr);
     }
@@ -343,6 +344,26 @@ public class ExprValidator extends AnalysisVisitor {
                     Stage.SEMANTIC,
                     expr.getLine(),
                     expr.getColumn(),
+                    message,
+                    null)
+            );
+        }
+
+        return null;
+    }
+
+    private Void visitMethodCallExpr(JmmNode methodCallExpr, SymbolTable table) {
+        // Check if the method call is valid
+        TypeUtils typeUtils = new TypeUtils(table);
+        var methodName = methodCallExpr.get("methodname");
+
+        // If the method name is not defined, report an error
+        if (!table.getMethods().contains(methodName)) {
+            var message = "Method '" + methodName + "' is not defined.";
+            addReport(Report.newError(
+                    Stage.SEMANTIC,
+                    methodCallExpr.getLine(),
+                    methodCallExpr.getColumn(),
                     message,
                     null)
             );

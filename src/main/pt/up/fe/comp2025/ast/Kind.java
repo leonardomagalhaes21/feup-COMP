@@ -34,6 +34,7 @@ public enum Kind {
     //Expressions
     PAREN_EXPR,
     UNARY_EXPR,
+    METHOD_CALL_EXPR,
     FUNC_EXPR,
     MEMBER_EXPR,
     BOOLEAN_LITERAL,
@@ -72,6 +73,7 @@ public enum Kind {
             VAR_REF_EXPR,
             PAREN_EXPR,
             UNARY_EXPR,
+            METHOD_CALL_EXPR,
             FUNC_EXPR,
             MEMBER_EXPR,
             BOOLEAN_LITERAL,

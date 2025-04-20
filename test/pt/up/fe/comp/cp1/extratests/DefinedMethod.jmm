@@ -1,0 +1,11 @@
+class Test {
+    public int func(int a) {
+        int b;
+        b = definedMethod(a);
+        return b;
+    }
+
+    public int definedMethod(int a) {
+        return a + 1;
+    }
+}

@@ -57,6 +57,7 @@ public class TypeUtils {
             case THIS_EXPR -> new Type(table.getClassName(), false);
             case MEMBER_EXPR -> getMemberExprType(expr);
             case UNARY_EXPR -> getUnaryExprType(expr);
+            case METHOD_CALL_EXPR -> getMethodCallExprType(expr);
             default -> throw new UnsupportedOperationException("Unknown expression kind: " + kind);
         };
     }
@@ -181,6 +182,24 @@ public class TypeUtils {
 
     private Type getUnaryExprType(JmmNode unaryExpr) {
         return getExprType(unaryExpr.getChildren().getFirst());
+    }
+
+    private Type getMethodCallExprType(JmmNode methodCallExpr) {
+        var methodName = methodCallExpr.get("methodname");
+
+        // Check if the method is a constructor
+        if (methodName.equals(table.getClassName())) {
+            return new Type(table.getClassName(), false);
+        }
+
+        // Check if the method is a static method
+        for (var method : table.getMethods()) {
+            if (method.equals(methodName)) {
+                return table.getReturnType(method);
+            }
+        }
+
+        return newType(TypeName.ANY, false);
     }
 
 
