@@ -16,6 +16,7 @@ import pt.up.fe.specs.util.SpecsCheck;
 public class UndeclaredVariable extends AnalysisVisitor {
 
     private String currentMethod;
+    private boolean isCurrentStatic;
 
     @Override
     public void buildVisitor() {
@@ -25,6 +26,7 @@ public class UndeclaredVariable extends AnalysisVisitor {
 
     private Void visitMethodDecl(JmmNode method, SymbolTable table) {
         currentMethod = method.get("name");
+        isCurrentStatic = method.getOptional("isStatic").map(Boolean::parseBoolean).orElse(false);
         return null;
     }
 
@@ -46,9 +48,15 @@ public class UndeclaredVariable extends AnalysisVisitor {
             return null;
         }
 
-        // Var is a field, return
-        if (table.getFields().stream()
-                .anyMatch(field -> field.getName().equals(varRefName))) {
+        // Var is a field, check if it is static
+        var fieldOpt = table.getFields().stream()
+                .filter(field -> field.getName().equals(varRefName))
+                .findFirst();
+        if (fieldOpt.isPresent()) {
+            if (isCurrentStatic) {
+                var message = "Cannot access instance field " + varRefName + " in a static context.";
+                addReport(Report.newError(Stage.SEMANTIC, varRefExpr.getLine(), varRefExpr.getColumn(), message, null));
+            }
             return null;
         }
 

@@ -1,5 +1,6 @@
 package pt.up.fe.comp2025.analysis.passes;
 
+import pt.up.fe.comp.jmm.analysis.table.Symbol;
 import pt.up.fe.comp.jmm.analysis.table.SymbolTable;
 import pt.up.fe.comp.jmm.analysis.table.Type;
 import pt.up.fe.comp.jmm.ast.JmmNode;
@@ -10,6 +11,7 @@ import pt.up.fe.comp2025.ast.TypeUtils;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp.jmm.report.Stage;
 
+import java.util.List;
 import java.util.Objects;
 
 public class ExprValidator extends AnalysisVisitor {
@@ -364,12 +366,35 @@ public class ExprValidator extends AnalysisVisitor {
     }
 
     private Void visitMethodCallExpr(JmmNode methodCallExpr, SymbolTable table) {
-        // Check if the method call is valid
-        TypeUtils typeUtils = new TypeUtils(table);
-        var methodName = methodCallExpr.get("methodname");
+        String methodName = methodCallExpr.get("methodname");
 
-        // If the method name is not defined, report an error
-        if (!table.getMethods().contains(methodName)) {
+        if (table.getMethods().contains(methodName)) {
+            List<Symbol> parameters = table.getParameters(methodName);
+            List<JmmNode> args = methodCallExpr.getChildren();
+            if (args.size() != parameters.size()) {
+                addReport(Report.newError(
+                        Stage.SEMANTIC,
+                        methodCallExpr.getLine(),
+                        methodCallExpr.getColumn(),
+                        "Method '" + methodName + "' expects " + parameters.size() + " arguments, but " + args.size() + " were provided.",
+                        null));
+            } else {
+                TypeUtils typeUtils = new TypeUtils(table);
+                for (int i = 0; i < args.size(); i++) {
+                    Type argType = typeUtils.getExprType(args.get(i));
+                    Type paramType = parameters.get(i).getType();
+                    if (!typeUtils.isAssignable(paramType, argType)) {
+                        addReport(Report.newError(
+                                Stage.SEMANTIC,
+                                methodCallExpr.getLine(),
+                                methodCallExpr.getColumn(),
+                                "Incorrect argument type for parameter " + (i + 1) + " in method '" + methodName + "'.",
+                                null));
+                    }
+                }
+            }
+        }
+        else {
             var message = "Method '" + methodName + "' is not defined.";
             addReport(Report.newError(
                     Stage.SEMANTIC,

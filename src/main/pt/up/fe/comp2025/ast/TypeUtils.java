@@ -69,7 +69,7 @@ public class TypeUtils {
         }
 
         var memberName = memberExpr.get("member");
-        var objectExpr = memberExpr.getChildren().get(0);
+        var objectExpr = memberExpr.getChildren().getFirst();
         var objectType = getExprType(objectExpr);
 
         // If this is a field access on the current class or imported class
