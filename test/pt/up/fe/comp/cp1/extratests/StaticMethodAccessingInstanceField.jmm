@@ -1,0 +1,6 @@
+class A {
+    int a;
+    static void f() {
+        a=10;
+    }
+}

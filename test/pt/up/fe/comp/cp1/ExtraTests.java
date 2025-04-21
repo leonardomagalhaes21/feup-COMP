@@ -257,4 +257,41 @@ public class ExtraTests {
         TestUtils.noErrors(result);
     }
 
+
+
+    @Test
+    public void testIncorrectArgumentCount() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/IncorrectArgumentCount.jmm"));
+        TestUtils.mustFail(result);
+    }
+
+    @Test
+    public void testIncorrectArgumentType() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/IncorrectArgumentType.jmm"));
+        TestUtils.mustFail(result);
+    }
+
+    @Test
+    public void testStaticMethodAccessingInstanceField() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/StaticMethodAccessingInstanceField.jmm"));
+        TestUtils.mustFail(result);
+    }
+
+    @Test
+    public void testVarargsAsField() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/VarargsAsField.jmm"));
+        TestUtils.mustFail(result);
+    }
+
+    @Test
+    public void testVarargsAsLocalVariable() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/VarargsAsLocalVariable.jmm"));
+        TestUtils.mustFail(result);
+    }
+
+    @Test
+    public void testVarargsAsReturnType() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/VarargsAsReturnType.jmm"));
+        TestUtils.mustFail(result);
+    }
 }
