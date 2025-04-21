@@ -1,0 +1,12 @@
+// ThisAsArgument.jmm - Should pass
+class ThisAsArgument {
+    public static void main(String[] args) {}
+
+    public int testThis() {
+        return someMethod(this);
+    }
+
+    public int someMethod(ThisAsArgument obj) {
+        return 1;
+    }
+}

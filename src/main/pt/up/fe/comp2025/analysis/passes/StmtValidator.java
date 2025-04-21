@@ -10,6 +10,7 @@ import pt.up.fe.comp2025.ast.Kind;
 import pt.up.fe.comp2025.ast.TypeUtils;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class StmtValidator extends AnalysisVisitor {
 
@@ -19,6 +20,61 @@ public class StmtValidator extends AnalysisVisitor {
         addVisit(Kind.ARRAY_ASSIGN_STMT, this::visitArrayAssignStmt);
         addVisit(Kind.BLOCK_STMT, this::visitBlockStmt);
 
+    }
+    @Override
+    public Void visit(JmmNode node, SymbolTable table) {
+        if (node.getKind().equals("Method")) {
+            checkStatementsAfterReturn(node);
+        } else if (node.getKind().equals("BlockStmt") ||
+                node.getKind().equals("IfStmt") ||
+                node.getKind().equals("WhileStmt")) {
+            checkBlockForStatementsAfterReturn(node);
+        }
+        return super.visit(node, table);
+    }
+
+    private void checkStatementsAfterReturn(JmmNode methodNode) {
+        List<JmmNode> statements = methodNode.getChildren().stream()
+                .filter(child -> !child.getKind().equals("Variable") &&
+                        !child.getKind().equals("Parameters"))
+                .toList();
+
+        checkStatementList(statements);
+    }
+
+    private void checkBlockForStatementsAfterReturn(JmmNode blockNode) {
+        List<JmmNode> statements = blockNode.getChildren();
+        checkStatementList(statements);
+    }
+
+    private void checkStatementList(List<JmmNode> statements) {
+        boolean foundReturn = false;
+        for (JmmNode stmt : statements) {
+            if (foundReturn && !stmt.getKind().equals("ElseStmt")) {
+                addReport(newError(stmt, "Unreachable code: statement after return"));
+            }
+
+            if (stmt.getKind().equals("ReturnStmt")) {
+                foundReturn = true;
+            } else if (stmt.getKind().equals("BlockStmt")) {
+                checkBlockForStatementsAfterReturn(stmt);
+            } else if (stmt.getKind().equals("IfStmt")) {
+                if (stmt.getNumChildren() >= 2) {
+                    JmmNode thenBlock = stmt.getChildren().get(1);
+                    checkBlockForStatementsAfterReturn(thenBlock);
+
+                    if (stmt.getNumChildren() >= 3) {
+                        JmmNode elseBlock = stmt.getChildren().get(2);
+                        checkBlockForStatementsAfterReturn(elseBlock);
+                    }
+                }
+            } else if (stmt.getKind().equals("WhileStmt")) {
+                if (stmt.getNumChildren() >= 2) {
+                    JmmNode whileBody = stmt.getChildren().get(1);
+                    checkBlockForStatementsAfterReturn(whileBody);
+                }
+            }
+        }
     }
 
     private Void visitAssignStmt(JmmNode assignStmt, SymbolTable table) {

@@ -238,4 +238,23 @@ public class ExtraTests {
         TestUtils.noErrors(result);
     }
 
+
+    @Test
+    public void testStatementsAfterReturn2(){
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/StatementsAfterReturn2.jmm"));
+        TestUtils.mustFail(result);
+    }
+
+    @Test
+    public void testThisAsArgument2(){
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/ThisAsArgument2.jmm"));
+        TestUtils.noErrors(result);
+    }
+
+    @Test
+    public void testImportedClassInstantiation2(){
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/ImportedClassInstantiation2.jmm"));
+        TestUtils.noErrors(result);
+    }
+
 }

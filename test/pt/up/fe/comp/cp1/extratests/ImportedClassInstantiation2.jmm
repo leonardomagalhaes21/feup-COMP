@@ -1,0 +1,12 @@
+// ImportedClassInstantiation.jmm - Should pass
+import abc;
+
+class ImportedClassInstantiation {
+    public static void main(String[] args) {}
+
+    public int testImport() {
+        abc obj;
+        obj = new abc();
+        return obj.exec();
+    }
+}
