@@ -1,12 +1,7 @@
-// ThisAsArgument.jmm - Should pass
-class ThisAsArgument {
-    public static void main(String[] args) {}
-
-    public int testThis() {
-        return someMethod(this);
-    }
-
-    public int someMethod(ThisAsArgument obj) {
-        return 1;
+// ThisAsArgument2.jmm - Should pass
+class A {
+    void f1(A a) {}
+    void f2() {
+        f1(this);
     }
 }

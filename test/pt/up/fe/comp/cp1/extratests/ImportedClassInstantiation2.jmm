@@ -1,12 +1,7 @@
-// ImportedClassInstantiation.jmm - Should pass
-import abc;
-
-class ImportedClassInstantiation {
-    public static void main(String[] args) {}
-
-    public int testImport() {
-        abc obj;
-        obj = new abc();
-        return obj.exec();
+// ImportedClassInstantiation2.jmm - Should pass
+import abcde;
+class A {
+    void f1() {
+        abcde.f();
     }
 }

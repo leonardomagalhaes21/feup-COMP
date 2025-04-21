@@ -159,6 +159,17 @@ public class ExprValidator extends AnalysisVisitor {
             return null;
         }
 
+        // Check if caller is directly a reference to an imported class (for static calls)
+        if (Kind.VAR_REF_EXPR.check(caller)) {
+            String callerName = caller.get("name");
+            for (String importName : table.getImports()) {
+                // Check if it's a direct import match
+                if (importName.equals(callerName) || importName.endsWith("." + callerName)) {
+                    return null; // Assume method exists in imported class
+                }
+            }
+        }
+
         // Check if caller type is the current class
         if (callerType.getName().equals(table.getClassName()) && table.getMethods().contains(methodName)) {
             return null;

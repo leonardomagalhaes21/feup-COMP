@@ -1,11 +1,7 @@
-// StatementsAfterReturn.jmm - Should fail
-class StatementsAfterReturn {
-    public static void main(String[] args) {}
-
-    public int testStatementAfterReturn() {
-        int a;
-
-        return 3;
-        a = 1+2;  // This statement is unreachable after return
+// StatementsAfterReturn2.jmm - Should fail
+class A {
+    int f() {
+        return 1;
+        a=1+2+3;
     }
 }
