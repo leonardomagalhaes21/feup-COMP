@@ -1,154 +1,75 @@
 package pt.up.fe.comp2025.optimization;
 
-import pt.up.fe.comp.jmm.analysis.table.Symbol;
 import pt.up.fe.comp.jmm.analysis.table.Type;
 import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.comp2025.ast.TypeUtils;
+import pt.up.fe.specs.util.collections.AccumulatorMap;
+import pt.up.fe.specs.util.exceptions.NotImplementedException;
+
+import static pt.up.fe.comp2025.ast.Kind.TYPE;
 
 /**
- * Utilitários para geração de código OLLIR
+ * Utility methods related to the optimization middle-end.
  */
 public class OptUtils {
-    private static int tempCounter = 0;
-    private static int labelCounter = 0;
-    private final TypeUtils typeUtils;
-    
-    public OptUtils(TypeUtils typeUtils) {
-        this.typeUtils = typeUtils;
-    }
-    
-    /**
-     * Gera um nome temporário único
-     */
-    public static String getTemp() {
-        return "t" + (tempCounter++);
+
+
+    private final AccumulatorMap<String> temporaries;
+
+    private final TypeUtils types;
+
+    public OptUtils(TypeUtils types) {
+        this.types = types;
+        this.temporaries = new AccumulatorMap<>();
     }
 
-    /**
-     * Gera um nome temporário único com um prefixo específico
-     */
-    public static String getTemp(String prefix) {
-        return prefix + (tempCounter++);
-    }
-    
-    /**
-     * Gera um rótulo único
-     */
-    public static String getLabel(String prefix) {
-        return prefix + (labelCounter++);
+
+    public String nextTemp() {
+
+        return nextTemp("tmp");
     }
 
-    // Add to OptUtils class if missing
-    public String toOllirType(Type type) {
-        if (type == null) {
-            return ".V"; // Void for null type
-        }
+    public String nextTemp(String prefix) {
 
-        StringBuilder ollirType = new StringBuilder();
+        // Subtract 1 because the base is 1
+        var nextTempNum = temporaries.add(prefix) - 1;
 
-        // Handle array types
-        if (type.isArray()) {
-            ollirType.append(".array");
-        }
-
-        // Map type names to OLLIR types
-        switch (type.getName()) {
-            case "int":
-                ollirType.append(".i32");
-                break;
-            case "boolean":
-                ollirType.append(".bool");
-                break;
-            case "void":
-                ollirType.append(".V");
-                break;
-            case "String":
-                ollirType.append(".String");
-                break;
-            default:
-                // For class types
-                ollirType.append(".").append(type.getName());
-                break;
-        }
-
-        return ollirType.toString();
+        return prefix + nextTempNum;
     }
-    
-    /**
-     * Converte um nó de tipo JMM para seu equivalente OLLIR
-     */
+
+
     public String toOllirType(JmmNode typeNode) {
-        if (typeNode.hasAttribute("name")) {
-            String typeName = typeNode.get("name");
-            boolean isArray = typeNode.hasAttribute("isArray") && typeNode.get("isArray").equals("true");
-            
-            StringBuilder ollirType = new StringBuilder();
-            
-            if (isArray) {
-                ollirType.append(".array");
-            }
-            
-            ollirType.append(getBaseOllirType(typeName));
-            
-            return ollirType.toString();
-        }
-        
-        return ".V"; // Default para void se não houver tipo
+
+        TYPE.checkOrThrow(typeNode);
+
+        return toOllirType(types.convertType(typeNode));
     }
-    
-    /**
-     * Obtém o tipo OLLIR base para um tipo Java
-     */
-    private String getBaseOllirType(String typeName) {
-        return switch (typeName) {
-            case "int" -> ".i32";
-            case "boolean" -> ".bool";
-            case "String" -> ".String";
-            case "void" -> ".V";
-            default -> "." + typeName; // Tipos de classe personalizada
+
+    // In OptUtils.java, change this from private to public
+    public String toOllirType(Type type) {
+        if (type.isArray()) {
+            return ".array" + toOllirType(new Type(type.getName(), false));
+        }
+
+        return "." + switch (type.getName()) {
+            case "int" -> "i32";
+            case "boolean" -> "bool";
+            case "void" -> "V";
+            case "String" -> "String";
+            default -> type.getName(); // For class types
         };
     }
-    
-    /**
-     * Obtém o tipo OLLIR para um símbolo da tabela de símbolos
-     */
-    public String getOllirType(Symbol symbol) {
-        return toOllirType(symbol.getType());
+
+    // Also make this public or leave it private and adjust your code to not call it directly
+    public String toOllirType(String typeName) {
+        return "." + switch (typeName) {
+            case "int" -> "i32";
+            case "boolean" -> "bool";
+            case "void" -> "V";
+            case "String" -> "String";
+            default -> typeName; // For class types
+        };
     }
-    
-    /**
-     * Verifica se uma string não está vazia ou só com espaços
-     */
-    public static boolean notEmptyWS(String str) {
-        return str != null && !str.trim().isEmpty();
-    }
-    
-    /**
-     * Retorna o tipo OLLIR de um parâmetro
-     */
-    public String getParameterOllirType(Type type) {
-        return toOllirType(type);
-    }
-    
-    /**
-     * Converte um literal booleano para seu equivalente OLLIR (0.bool ou 1.bool)
-     */
-    public String booleanLiteralToOllir(String boolValue) {
-        return Boolean.parseBoolean(boolValue) ? "1.bool" : "0.bool";
-    }
-    
-    /**
-     * Converte um literal inteiro para seu equivalente OLLIR
-     */
-    public String intLiteralToOllir(String intValue) {
-        return intValue + ".i32";
-    }
-    
-    /**
-     * Obtém o nome do tipo para os operandos
-     */
-    public String getOperandType(JmmNode node) {
-        Type nodeType = typeUtils.getExprType(node);
-        return toOllirType(nodeType);
-    }
+
+
 }
