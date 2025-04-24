@@ -287,35 +287,31 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
 
 
-    private String visitClass(JmmNode node, Void unused) {
-
-
+    private String visitClass(JmmNode node, Void u) {
         StringBuilder code = new StringBuilder();
 
-        code.append(NL);
         code.append(table.getClassName());
 
-        if (table.getSuper() != null) {
-            //return table.getSuper();
-            //code.append(" extends ").append(table.getSuper());
+        var superClass = table.getSuper().isEmpty() ? "Object" : table.getSuper();
+        code.append(" extends ").append(superClass).append(L_BRACKET);
+        for (var field : table.getFields()) {
+            code.append(".field public ").append(field.getName());
+            code.append(ollirTypes.toOllirType(field.getType())).append(END_STMT);
         }
 
-        code.append(L_BRACKET);
-        code.append(NL);
-        code.append(NL);
-
         code.append(buildConstructor());
-        code.append(NL);
 
-        for (var child : node.getChildren(METHOD_DECL)) {
-            var result = visit(child);
-            code.append(result);
+        // instantiate methods
+        for (var method : node.getChildren()) {
+            if (method.getKind().equals("Method")) {
+                code.append(visit(method));
+            }
         }
 
         code.append(R_BRACKET);
-
         return code.toString();
     }
+
 
     private String buildConstructor() {
 
