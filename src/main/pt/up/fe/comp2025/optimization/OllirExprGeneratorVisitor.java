@@ -193,23 +193,21 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
         return new OllirExprResult(tempVar + typeString, computation);
     }
 
-    private OllirExprResult visitNewArray(JmmNode node, Void dummy) {
-        // Modified to ensure proper OLLIR syntax for array creation
-        OllirExprResult sizeExpr = visit(node.getChild(0));
-        StringBuilder computation = new StringBuilder(sizeExpr.getComputation());
+    private OllirExprResult visitNewArray(JmmNode node, Void u) {
+        String type = ollirTypes.toOllirType(TypeUtils.newType(TypeName.INT, true)); // array always int
 
-        String arrayType = ".array.i32";
-        String tempVar = ollirTypes.nextTemp();
+        String tmp = ollirTypes.nextTemp() + type;
 
-        // Generate array creation code with proper OLLIR syntax
-        computation.append(tempVar).append(arrayType)
-                .append(" :=").append(arrayType)
-                .append(" new(array, ")
-                .append(sizeExpr.getCode())
-                .append(")")
-                .append(END_STMT);
+        var expr = visit(node.getChild(0));
 
-        return new OllirExprResult(tempVar + arrayType, computation);
+        StringBuilder computation = new StringBuilder();
+
+        computation.append(expr.getComputation());
+        computation.append(tmp).append(" :=").append(type);
+        computation.append(" new(array, ").append(expr.getCode());
+        computation.append(")").append(type).append(END_STMT);
+
+        return new OllirExprResult(tmp, computation);
     }
 
     private OllirExprResult visitArrayAccess(JmmNode node, Void dummy) {
