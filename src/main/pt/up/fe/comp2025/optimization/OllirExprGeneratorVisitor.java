@@ -210,24 +210,23 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
         return new OllirExprResult(tmp, computation);
     }
 
-    private OllirExprResult visitArrayAccess(JmmNode node, Void dummy) {
-        OllirExprResult arrayExpr = visit(node.getChild(0));
-        OllirExprResult indexExpr = visit(node.getChild(1));
+    private OllirExprResult visitArrayAccess(JmmNode node, Void u) {
+        String type = ollirTypes.toOllirType(TypeUtils.newType(TypeName.INT, false));
+
+        String tmp = ollirTypes.nextTemp() + type;
+
+        var v = visit(node.getChild(0));
+        var expr = visit(node.getChild(1));
 
         StringBuilder computation = new StringBuilder();
-        computation.append(arrayExpr.getComputation());
-        computation.append(indexExpr.getComputation());
 
-        String tempVar = ollirTypes.nextTemp();
-        String resultType = ".i32";
+        computation.append(v.getComputation()).append(expr.getComputation());
+        computation.append(tmp).append(" :=").append(type);
+        computation.append(" ").append(v.getCode());
+        computation.append("[").append(expr.getCode()).append("]");
+        computation.append(type).append(END_STMT);
 
-        computation.append(tempVar).append(resultType)
-                .append(" :=").append(resultType)
-                .append(" ").append(arrayExpr.getCode())
-                .append("[").append(indexExpr.getCode()).append("]")
-                .append(END_STMT);
-
-        return new OllirExprResult(tempVar + resultType, computation);
+        return new OllirExprResult(tmp, computation);
     }
 
     private OllirExprResult visitArrayLength(JmmNode node, Void dummy) {
