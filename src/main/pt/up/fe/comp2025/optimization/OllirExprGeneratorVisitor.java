@@ -68,24 +68,92 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
 
         StringBuilder computation = new StringBuilder();
 
-        // code to compute the children
-        computation.append(lhs.getComputation());
-        computation.append(rhs.getComputation());
-
-        // code to compute self
+        // Get the result type and its OLLIR equivalent
         Type resType = types.getExprType(node);
         String resOllirType = ollirTypes.toOllirType(resType);
-        String code = ollirTypes.nextTemp() + resOllirType;
+        // temporary to store the result
+        String tempName = ollirTypes.nextTemp();
 
-        computation.append(code).append(SPACE)
-                .append(ASSIGN).append(resOllirType).append(SPACE)
-                .append(lhs.getCode()).append(SPACE);
+        if (op.equals("&&")) {
+            String labelEval  = OptUtils.getLabel("andEval");
+            String labelFalse = OptUtils.getLabel("andFalse");
+            String labelTrue  = OptUtils.getLabel("andTrue");
+            String labelEnd   = OptUtils.getLabel("andEnd");
 
-        // Handle different operators with proper OLLIR syntax
-        computation.append(op).append(resOllirType).append(SPACE)
-                .append(rhs.getCode()).append(END_STMT);
+            // If lhs is true, evaluate rhs, otherwise go to false
+            computation.append(lhs.getComputation());
+            computation.append("if (").append(lhs.getCode()).append(") goto ").append(labelEval).append(END_STMT);
+            computation.append("goto ").append(labelFalse).append(END_STMT);
 
-        return new OllirExprResult(code, computation);
+            // Evaluate rhs
+            computation.append(labelEval).append(":\n");
+            computation.append(rhs.getComputation());
+            computation.append("if (").append(rhs.getCode()).append(") goto ").append(labelTrue).append(END_STMT);
+            computation.append("goto ").append(labelFalse).append(END_STMT);
+
+            // False label: assign false
+            computation.append(labelFalse).append(":\n");
+            computation.append(tempName).append(resOllirType).append(" :=").append(resOllirType).append(" false").append(resOllirType).append(END_STMT);
+            computation.append("goto ").append(labelEnd).append(END_STMT);
+
+            // True label: assign true
+            computation.append(labelTrue).append(":\n");
+            computation.append(tempName).append(resOllirType).append(" :=").append(resOllirType).append(" true").append(resOllirType).append(END_STMT);
+
+            // End label
+            computation.append(labelEnd).append(":\n");
+
+            return new OllirExprResult(tempName + resOllirType, computation.toString());
+        } else if (op.equals("||")) {
+            String labelEval  = OptUtils.getLabel("orEval");
+            String labelFalse = OptUtils.getLabel("orFalse");
+            String labelTrue  = OptUtils.getLabel("orTrue");
+            String labelEnd   = OptUtils.getLabel("orEnd");
+
+            // If lhs is true, go to true, otherwise evaluate rhs
+            computation.append(lhs.getComputation());
+            computation.append("if (").append(lhs.getCode()).append(") goto ").append(labelTrue).append(END_STMT);
+            computation.append("goto ").append(labelEval).append(END_STMT);
+
+            // Evaluate rhs
+            computation.append(labelEval).append(":\n");
+            computation.append(rhs.getComputation());
+            computation.append("if (").append(rhs.getCode()).append(") goto ").append(labelTrue).append(END_STMT);
+            computation.append("goto ").append(labelFalse).append(END_STMT);
+
+            // False label: assign false
+            computation.append(labelFalse).append(":\n");
+            computation.append(tempName).append(resOllirType).append(" :=").append(resOllirType).append(" false").append(resOllirType).append(END_STMT);
+            computation.append("goto ").append(labelEnd).append(END_STMT);
+
+            // True label: assign true
+            computation.append(labelTrue).append(":\n");
+            computation.append(tempName).append(resOllirType).append(" :=").append(resOllirType).append(" true").append(resOllirType).append(END_STMT);
+
+            // End label
+            computation.append(labelEnd).append(":\n");
+
+            return new OllirExprResult(tempName + resOllirType, computation.toString());
+        } else {
+            // Default handling for other operators
+            computation.append(lhs.getComputation());
+            computation.append(rhs.getComputation());
+
+            String tempWithType = tempName + resOllirType;
+            computation.append(tempWithType)
+                    .append(" :=")
+                    .append(resOllirType)
+                    .append(" ")
+                    .append(lhs.getCode())
+                    .append(" ")
+                    .append(op)
+                    .append(resOllirType)
+                    .append(" ")
+                    .append(rhs.getCode())
+                    .append(END_STMT);
+
+            return new OllirExprResult(tempWithType, computation.toString());
+        }
     }
 
     private OllirExprResult visitVarRef(JmmNode node, Void unused) {

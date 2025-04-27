@@ -18,6 +18,8 @@ public class OptUtils {
 
     private final TypeUtils types;
 
+    private static int labelCounter = 0;
+
     public OptUtils(TypeUtils types) {
         this.types = types;
         this.temporaries = new AccumulatorMap<>();
@@ -37,6 +39,10 @@ public class OptUtils {
         return prefix + nextTempNum;
     }
 
+    public static String getLabel(String s) {
+
+        return s + labelCounter++;
+    }
 
     public String toOllirType(JmmNode typeNode) {
 
@@ -45,7 +51,6 @@ public class OptUtils {
         return toOllirType(types.convertType(typeNode));
     }
 
-    // In OptUtils.java, change this from private to public
     public String toOllirType(Type type) {
         if (type.isArray()) {
             return ".array" + toOllirType(new Type(type.getName(), false));
@@ -60,16 +65,6 @@ public class OptUtils {
         };
     }
 
-    // Also make this public or leave it private and adjust your code to not call it directly
-    public String toOllirType(String typeName) {
-        return "." + switch (typeName) {
-            case "int" -> "i32";
-            case "boolean" -> "bool";
-            case "void" -> "V";
-            case "String" -> "String";
-            default -> typeName; // For class types
-        };
-    }
 
 
 }
