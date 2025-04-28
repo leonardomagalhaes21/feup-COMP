@@ -44,6 +44,7 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
         addVisit(METHOD_CALL_EXPR, this::visitMethodCall);
         addVisit(LENGTH_EXPR, this::visitArrayLength);
         addVisit(BOOLEAN_LITERAL, this::visitBooleanLiteral);
+        addVisit(FUNC_EXPR, this::visitFuncExpr);
         setDefaultVisit(this::defaultVisit);
     }
 
@@ -280,5 +281,67 @@ public class OllirExprGeneratorVisitor extends PreorderJmmVisitor<Void, OllirExp
                 .append(";\n");
 
         return new OllirExprResult(tempWithType, computation);
+    }
+
+    private OllirExprResult visitFuncExpr(JmmNode node, Void unused) {
+        StringBuilder code = new StringBuilder();
+        StringBuilder computation = new StringBuilder();
+
+        // Get method name
+        String methodName = node.get("methodname");
+
+        // Build arguments list
+        List<OllirExprResult> args = new ArrayList<>();
+        for (int i = 0; i < node.getNumChildren(); i++) {
+            OllirExprResult arg = visit(node.getChild(i));
+            args.add(arg);
+            computation.append(arg.getComputation());
+        }
+
+        // Check if this is a method call on an imported class
+        boolean isImported = table.getImports().stream()
+                .anyMatch(imp -> imp.equals(methodName) || imp.endsWith("." + methodName));
+
+        String target = isImported ? methodName : "this";
+        String invokeType = isImported ? "invokestatic" : "invokevirtual";
+
+        // Generate a temp var to store the result if needed
+        Type returnType = types.getExprType(node);
+        String ollirType = ollirTypes.toOllirType(returnType);
+        String resultVar = ollirTypes.nextTemp();
+
+        // Build the arguments string
+        String argsStr = args.stream()
+                .map(OllirExprResult::getCode)
+                .collect(Collectors.joining(", "));
+
+        // Handle the method call differently based on whether it's a static (imported) method or instance method
+        if (isImported) {
+            // For static methods on imported classes (like io.println)
+            computation.append(resultVar).append(ollirType)
+                    .append(" :=").append(ollirType).append(" ")
+                    .append(invokeType).append("(").append(target);
+
+            if (!args.isEmpty()) {
+                computation.append(", ").append(argsStr);
+            }
+
+            computation.append(")").append(ollirType).append(";\n");
+        } else {
+            // For instance methods (calling a method on this or another object)
+            // This part needs to be adjusted based on your specific requirements
+            computation.append(resultVar).append(ollirType)
+                    .append(" :=").append(ollirType).append(" ")
+                    .append(invokeType).append("(").append(target).append(", \"")
+                    .append(methodName).append("\"");
+
+            if (!args.isEmpty()) {
+                computation.append(", ").append(argsStr);
+            }
+
+            computation.append(")").append(ollirType).append(";\n");
+        }
+
+        return new OllirExprResult(resultVar + ollirType, computation);
     }
 }

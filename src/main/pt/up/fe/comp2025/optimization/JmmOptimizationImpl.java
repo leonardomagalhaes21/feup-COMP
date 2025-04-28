@@ -83,6 +83,7 @@ public class JmmOptimizationImpl implements JmmOptimization {
         var insts = m.getInstructions();
         var sz = insts.size();
 
+        // Initialize sets for each instruction
         Set<String>[] IN = new Set[sz];
         Set<String>[] OUT = new Set[sz];
         Set<String>[] DEF = new Set[sz];
@@ -93,117 +94,115 @@ public class JmmOptimizationImpl implements JmmOptimization {
             DEF[i] = defs(m.getInstr(i));
         }
 
-        // live-ins and live-outs algorithm
+        // Calculate live-ins and live-outs using standard data flow analysis
         boolean changed = true;
         while (changed) {
             changed = false;
-            for (int i = 0; i < sz; i++) {
+            for (int i = sz - 1; i >= 0; i--) { // Process backwards for faster convergence
                 var inst = m.getInstr(i);
-                TreeSet<String> newIn = new TreeSet<>(OUT[i]);
-                newIn.removeAll(DEF[i]);
-                newIn.addAll(uses(inst));
 
-                if (!equalSets(newIn, IN[i])) {
-                    changed = true;
-                }
+                // Calculate new IN set: IN = USE ∪ (OUT - DEF)
+                TreeSet<String> newIn = new TreeSet<>(uses(inst));
+                TreeSet<String> outMinusDef = new TreeSet<>(OUT[i]);
+                outMinusDef.removeAll(DEF[i]);
+                newIn.addAll(outMinusDef);
 
+                // Calculate new OUT set: OUT = ⋃(successor IN sets)
                 TreeSet<String> newOut = new TreeSet<>();
-
                 for (var suc : inst.getSuccessors()) {
                     int id = suc.getId() - 1;
                     if (id < 0 || id >= sz) continue;
                     newOut.addAll(IN[id]);
                 }
 
-                if (!equalSets(newOut, OUT[i])) {
+                // Check if anything changed
+                if (!equalSets(newIn, IN[i]) || !equalSets(newOut, OUT[i])) {
                     changed = true;
+                    IN[i] = newIn;
+                    OUT[i] = newOut;
                 }
-
-                IN[i] = newIn;
-                OUT[i] = newOut;
             }
         }
 
-        // register allocation
-        int reg = 1 + m.getParams().size();
-        var nodes = m.getVarTable().keySet();
-        nodes.remove("this");
-
-        for (var param : m.getParams()) {
-            nodes.remove(((Operand) param).getName());
-        }
-
-        HashMap<String, Integer> colors = new HashMap<>();
-        for (var key : nodes) colors.put(key, -1);
-
-        HashMap<String, Set<String>> edges = new HashMap<>();
-        HashMap<String, Set<String>> persistent = new HashMap<>();
-
-        for (var node : nodes) {
-            edges.put(node, new TreeSet<>());
-            persistent.put(node, new TreeSet<>());
-        }
-
+        // Build the interference graph
+        Set<String> variables = new TreeSet<>();
         for (int i = 0; i < sz; i++) {
-            TreeSet<String> defout = new TreeSet<>(DEF[i]);
-            defout.addAll(OUT[i]);
+            variables.addAll(IN[i]);
+            variables.addAll(OUT[i]);
+            variables.addAll(DEF[i]);
+        }
 
-            for (var a : defout) {
-                for (var b : defout) {
-                    if (a.equals(b)) continue;
-                    edges.get(a).add(b);
-                    edges.get(b).add(a);
-                    persistent.get(a).add(b);
-                    persistent.get(b).add(a);
-                }
+        // Remove 'this' and parameters from the variables that need register allocation
+        variables.remove("this");
+        for (var param : m.getParams()) {
+            if (param instanceof org.specs.comp.ollir.Operand) {
+                variables.remove(((org.specs.comp.ollir.Operand) param).getName());
             }
         }
 
-        Stack<String> st = new Stack<>();
-        int k = 1;
+        // Create the interference graph
+        HashMap<String, Set<String>> graph = new HashMap<>();
+        for (String var : variables) {
+            graph.put(var, new TreeSet<>());
+        }
 
-        while (!nodes.isEmpty()) {
-            boolean found = false;
-            TreeSet<String> rm = new TreeSet<>();
-            for (var node : nodes) {
-                if (!edges.containsKey(node)) continue;
-                if (edges.get(node).size() < k) {
-                    found = true;
-                    st.add(node);
-                    rm.add(node);
-                    for (var al : edges.keySet()) {
-                        edges.get(al).remove(node);
+        // Fill the interference graph - variables live at the same time interfere with each other
+        for (int i = 0; i < sz; i++) {
+            Set<String> liveOut = new TreeSet<>(OUT[i]);
+            for (String defVar : DEF[i]) {
+                for (String outVar : liveOut) {
+                    if (!defVar.equals(outVar) && graph.containsKey(defVar) && graph.containsKey(outVar)) {
+                        graph.get(defVar).add(outVar);
+                        graph.get(outVar).add(defVar);
                     }
                 }
             }
-            for (var el : rm) nodes.remove(el);
-            if (!found) k++;
         }
 
-        edges = persistent;
+        // Allocate registers using a simple greedy algorithm
+        HashMap<String, Integer> colors = new HashMap<>();
 
-        while (!st.isEmpty()) {
-            String color = st.getLast();
-            st.pop();
-            int paint = reg;
+        // Start register numbering after parameters
+        int nextReg = 1;  // Start at 1 because register 0 is for 'this'
+        if (m.isStaticMethod()) {
+            nextReg = 0;  // Static methods don't have 'this'
+        }
+        nextReg += m.getParams().size();
 
-            TreeSet<Integer> used = new TreeSet<>();
-            for (var neigh : edges.get(color)) {
-                int c = colors.get(neigh);
-                if (c != -1) used.add(c);
+        // Sort variables by degree (number of interferences)
+        List<String> sortedVars = new ArrayList<>(variables);
+        sortedVars.sort((a, b) -> {
+            if (!graph.containsKey(a) || !graph.containsKey(b)) return 0;
+            return Integer.compare(graph.get(b).size(), graph.get(a).size());
+        });
+
+        // Assign registers
+        for (String var : sortedVars) {
+            if (!graph.containsKey(var)) continue;
+
+            // Find the smallest available register
+            Set<Integer> usedColors = new TreeSet<>();
+            for (String neighbor : graph.get(var)) {
+                if (colors.containsKey(neighbor)) {
+                    usedColors.add(colors.get(neighbor));
+                }
             }
 
-            while (used.contains(paint)) paint++;
-            colors.put(color, paint);
+            int color = nextReg;
+            while (usedColors.contains(color)) {
+                color++;
+            }
+
+            colors.put(var, color);
         }
 
+        // Update the variable table with assigned registers
         var VT = m.getVarTable();
-
-        for (var color : colors.keySet()) {
-            VT.put(color, new Descriptor(colors.get(color)));
+        for (String var : variables) {
+            if (colors.containsKey(var)) {
+                VT.put(var, new org.specs.comp.ollir.Descriptor(colors.get(var)));
+            }
         }
-
-        int x = 1;
     }
 
     private boolean equalSets(Set<String> a, Set<String> b) {
