@@ -29,6 +29,7 @@ public class JmmOptimizationImpl implements JmmOptimization {
         assignments = new ArrayList<>();
         assignments.add(ASSIGN_STMT);
         assignments.add(ARRAY_ASSIGN_STMT);
+        assignments.add(FIELD_ASSIGN_STMT);
     }
 
     @Override

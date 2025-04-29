@@ -52,6 +52,7 @@ public enum Kind {
     IF_STMT,
     WHILE_STMT,
     ASSIGN_STMT,
+    FIELD_ASSIGN_STMT,
     ARRAY_ASSIGN_STMT,
     RETURN_STMT;
 
@@ -62,6 +63,7 @@ public enum Kind {
             IF_STMT,
             WHILE_STMT,
             ASSIGN_STMT,
+            FIELD_ASSIGN_STMT,
             ARRAY_ASSIGN_STMT,
             RETURN_STMT
     );

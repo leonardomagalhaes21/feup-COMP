@@ -73,6 +73,7 @@ stmt
     | IF '(' expr ')' stmt (ELSE stmt)? # IfStmt
     | WHILE '(' expr ')' stmt          # WhileStmt
     | expr '=' expr ';'                # AssignStmt
+    | THIS '.' field=ID '=' expr ';'   # FieldAssignStmt
     | expr '[' expr ']' '=' expr ';'   # ArrayAssignStmt
     | RETURN expr ';'                  # ReturnStmt
     ;

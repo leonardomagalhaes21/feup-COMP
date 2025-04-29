@@ -6,7 +6,10 @@ import pt.up.fe.comp.jmm.ast.AJmmVisitor;
 import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.comp2025.ast.TypeName;
 import pt.up.fe.comp2025.ast.TypeUtils;
+import pt.up.fe.comp2025.ast.Kind;
 
+import java.util.List;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 import static pt.up.fe.comp2025.ast.Kind.*;
@@ -43,6 +46,7 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
     @Override
     protected void buildVisitor() {
+        addVisit(METHOD_DECL,this::visitMethod);
         addVisit(PROGRAM, this::visitProgram);
         addVisit(CLASS_DECL, this::visitClass);
         addVisit(METHOD_DECL, this::visitMethodDecl);
@@ -51,16 +55,69 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
         addVisit(RETURN_STMT, this::visitReturn);
         addVisit(ASSIGN_STMT, this::visitAssignStmt);
+        addVisit(FIELD_ASSIGN_STMT, this::visitFieldAssignStmt);
         addVisit(ARRAY_ACCESS_EXPR, this::visitComplexArrayAccess);
         addVisit(IF_STMT, this::visitIfStmt);
         addVisit(WHILE_STMT, this::visitWhileStmt);
         addVisit(ARRAY_ASSIGN_STMT, this::visitArrayElement);
+        addVisit(EXPR_STMT, this::visitExprStmt);
 
         addVisit(IMPORT_DECL, this::visitImport);
 
         setDefaultVisit(this::defaultVisit);
     }
 
+    private String visitMethod(JmmNode node, Void u) {
+        StringBuilder code = new StringBuilder(".method ");
+
+        // Add modifiers
+        if (node.getOptional("isPublic").map(Boolean::parseBoolean).orElse(false)) {
+            code.append("public ");
+        } else {
+            code.append("private ");
+        }
+
+        if (node.getOptional("isStatic").map(Boolean::parseBoolean).orElse(false)) {
+            code.append("static ");
+        }
+
+        // Add method name
+        code.append(node.get("name"));
+
+        // Add parameters
+        JmmNode paramsNode = node.getChildren().stream()
+                .filter(child -> child.getKind().equals(PARAMETERS.getNodeName()))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("No parameters node found in method declaration"));
+
+        String params = paramsNode.getChildren().stream()
+                .map(this::visit)
+                .collect(Collectors.joining(", "));
+
+        code.append("(").append(params).append(")");
+
+        // Add return type
+        JmmNode typeNode = node.getChild(0);
+        code.append(ollirTypes.toOllirType(typeNode)).append(" {\n");
+
+        // Add method statements - find statements among children
+        node.getChildren().stream()
+                .filter(child -> STATEMENTS.contains(Kind.fromString(child.getKind())))
+                .forEach(stmt -> code.append("    ").append(visit(stmt)).append("\n"));
+
+        // If return is void and no return statement found, add default return
+        Type returnType = TypeUtils.convertType(typeNode);
+        boolean hasReturnStmt = node.getChildren().stream()
+                .anyMatch(child -> child.getKind().equals(RETURN_STMT.getNodeName()));
+
+        if (returnType.getName().equals("void") && !hasReturnStmt) {
+            code.append("    ret.V;\n");
+        }
+
+        code.append("}\n");
+
+        return code.toString();
+    }
 
     private String visitIfStmt(JmmNode node, Void unused) {
         StringBuilder code = new StringBuilder();
@@ -141,8 +198,8 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
     }
 
     private String visitImport(JmmNode node, Void unused) {
-        // Imports don't generate code in OLLIR
-        return "";
+        List<String> name = node.getObjectAsList("name", String.class);
+        return "import " + String.join(".", name) + END_STMT;
     }
     private String visitParameters(JmmNode node, Void unused) {
         StringBuilder params = new StringBuilder();
@@ -245,7 +302,6 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         return code.toString();
     }
 
-    // Fix visitAssignStmt to properly get variable types
     private String visitAssignStmt(JmmNode node, Void unused) {
         JmmNode left = node.getChild(0);
         JmmNode right = node.getChild(1);
@@ -257,18 +313,69 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         }
 
         String name = left.get("name");
-        Type type = types.getExprType(left); // Use getExprType instead of getVarType
+        Type type = types.getExprType(left);
+        String ollirType = ollirTypes.toOllirType(type);
 
         var rhs = exprVisitor.visit(right);
         code.append(rhs.getComputation());
 
-        code.append(name).append(ollirTypes.toOllirType(type))
-                .append(" :=").append(ollirTypes.toOllirType(type))
-                .append(" ")
-                .append(rhs.getCode())
-                .append(END_STMT);
+        // Check if this is a field assignment or a local variable
+        // First check if we're in a method
+        JmmNode methodNode = node.getAncestor(METHOD_DECL).orElse(null);
+        boolean isLocalVar = false;
+        
+        if (methodNode != null) {
+            String methodName = methodNode.get("name");
+            // Check if it's a local variable in this method
+            isLocalVar = table.getLocalVariables(methodName).stream()
+                    .anyMatch(var -> var.getName().equals(name));
+            
+            // Also check if it's a parameter (which is also a local variable)
+            if (!isLocalVar) {
+                isLocalVar = table.getParameters(methodName).stream()
+                    .anyMatch(param -> param.getName().equals(name));
+            }
+        }
+        
+        // Check if this is a field assignment - only if it's not a local var
+        boolean isField = !isLocalVar && table.getFields().stream()
+                .anyMatch(field -> field.getName().equals(name));
+
+        if (isField) {
+            // For fields, use putfield instruction
+            code.append("putfield(this, ").append(name).append(ollirType)
+                    .append(", ").append(rhs.getCode()).append(")")
+                    .append(".V") // Add proper void return type for putfield
+                    .append(END_STMT);
+        } else {
+            // For local variables, use normal assignment
+            code.append(name).append(ollirType)
+                    .append(" :=").append(ollirType)
+                    .append(" ")
+                    .append(rhs.getCode())
+                    .append(END_STMT);
+        }
 
         return code.toString();
+    }
+
+    private String visitFieldAssignStmt(JmmNode node, Void unused) {
+        JmmNode field = node.getChild(0);
+        JmmNode assignee = node.getChild(1);
+        var expr = exprVisitor.visit(assignee);
+
+
+        Type fieldType = null;
+        for (var f : table.getFields()) {
+            if (f.getName().equals(field.get("name"))) {
+                fieldType = f.getType();
+            }
+        }
+
+        assert fieldType != null;
+        String type = ollirTypes.toOllirType(fieldType);
+
+        return expr.getComputation() + "putfield(this, " + field.get("name") + type + ", " + expr.getCode() + ")" + ".V" + END_STMT;
     }
 
 
@@ -314,7 +421,6 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
 
     private String buildConstructor() {
-
         return """
                 .construct %s().V {
                     invokespecial(this, "<init>").V;
@@ -359,11 +465,11 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
                 .append(" :=").append(resultType)
                 .append(" ").append(array.getCode())
                 .append("[").append(index.getCode()).append("]")
+                .append(resultType) // Add the type specification before END_STMT
                 .append(END_STMT);
 
         return new OllirExprResult(tempVar + resultType, code.toString()).getComputation();
     }
-
     private String visitArrayElement(JmmNode node, Void unused) {
         // Handle array element assignment (a[i] = x)
         JmmNode arrayAccessNode = node.getChild(0);
@@ -382,15 +488,72 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         code.append(indexExpr.getComputation());
         code.append(value.getComputation());
 
-        // Generate the array assignment - CORRECT OLLIR SYNTAX FOR ARRAY ASSIGNMENT
+        // Generate the array assignment - use correct OLLIR syntax
         code.append(arrayObj.getCode())
                 .append("[").append(indexExpr.getCode()).append("]")
-                .append(resultType) // Type must appear here in OLLIR
+                .append(resultType)
                 .append(" :=").append(resultType)
                 .append(" ")
                 .append(value.getCode())
                 .append(END_STMT);
 
         return code.toString();
+    }
+
+    private String visitExprStmt(JmmNode node, Void unused) {
+        JmmNode exprNode = node.getChild(0);
+        
+        // Special handling for function calls to ensure they're recognized as CallInstructions
+        if (exprNode.getKind().equals(FUNC_EXPR.getNodeName())) {
+            String methodName = exprNode.get("methodname");
+            JmmNode objNode = exprNode.getChild(0);
+            
+            // Check if this is a call to a method of an imported class (static method)
+            if (objNode.getKind().equals(VAR_REF_EXPR.getNodeName())) {
+                String className = objNode.get("name");
+                boolean isImported = false;
+                
+                // Check if the class is imported
+                for (String imp : table.getImports()) {
+                    if (imp.equals(className) || imp.endsWith("." + className)) {
+                        isImported = true;
+                        break;
+                    }
+                }
+                
+                if (isImported) {
+                    StringBuilder code = new StringBuilder();
+                    
+                    // Process arguments after the target
+                    List<String> argCodes = new ArrayList<>();
+                    for (int i = 1; i < exprNode.getNumChildren(); i++) {
+                        OllirExprResult arg = exprVisitor.visit(exprNode.getChild(i));
+                        code.append(arg.getComputation());
+                        argCodes.add(arg.getCode());
+                    }
+                    
+                    // Build the invokestatic call
+                    code.append("invokestatic(")
+                        .append(className)
+                        .append(", \"")
+                        .append(methodName)
+                        .append("\"");
+                    
+                    // Add arguments if any
+                    if (!argCodes.isEmpty()) {
+                        code.append(", ")
+                            .append(String.join(", ", argCodes));
+                    }
+                    
+                    code.append(").V")  // Add void return type
+                        .append(END_STMT);
+                    
+                    return code.toString();
+                }
+            }
+        }
+        
+        // Default behavior for other expressions
+        return exprVisitor.visit(exprNode).getComputation();
     }
 }
