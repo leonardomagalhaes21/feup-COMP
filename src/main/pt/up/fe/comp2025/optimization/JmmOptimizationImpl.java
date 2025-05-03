@@ -133,7 +133,6 @@ public class JmmOptimizationImpl implements JmmOptimization {
             variables.addAll(DEF[i]);
         }
 
-        // Remove 'this' and parameters from the variables that need register allocation
         variables.remove("this");
         for (var param : m.getParams()) {
             if (param instanceof org.specs.comp.ollir.Operand) {
@@ -164,7 +163,7 @@ public class JmmOptimizationImpl implements JmmOptimization {
         HashMap<String, Integer> colors = new HashMap<>();
 
         // Start register numbering after parameters
-        int nextReg = 1;  // Start at 1 because register 0 is for 'this'
+        int nextReg = 1;
         if (m.isStaticMethod()) {
             nextReg = 0;  // Static methods don't have 'this'
         }
@@ -262,7 +261,7 @@ public class JmmOptimizationImpl implements JmmOptimization {
     }
 
     private boolean propagate(JmmNode node, SymbolTable table) {
-        var cl = node.getChildren(CLASS_DECL.getNodeName()).get(0);
+        var cl = node.getChildren(CLASS_DECL.getNodeName()).getFirst();
         var methods = cl.getChildren(METHOD_DECL.getNodeName());
 
         boolean ret = false;
@@ -305,7 +304,7 @@ public class JmmOptimizationImpl implements JmmOptimization {
                     ret |= tryReplace(expr, integers, booleans);
                 }
             } catch (Exception ignored) {
-                // Kind.fromString can throw exception, ignore and continue
+                continue;
             }
         }
 
@@ -459,10 +458,10 @@ public class JmmOptimizationImpl implements JmmOptimization {
         JmmNode add;
 
         if (integers.containsKey(name)) {
-            add = new JmmNodeImpl(Arrays.asList(INTEGER_LITERAL.getNodeName()));
+            add = new JmmNodeImpl(Collections.singletonList(INTEGER_LITERAL.getNodeName()));
             add.put("value", integers.get(name).toString());
         } else if (booleans.containsKey(name)) {
-            add = new JmmNodeImpl(Arrays.asList(BOOLEAN_LITERAL.getNodeName()));
+            add = new JmmNodeImpl(Collections.singletonList(BOOLEAN_LITERAL.getNodeName()));
             add.put("value", booleans.get(name).toString());
         } else {
             return false;
@@ -535,9 +534,9 @@ public class JmmOptimizationImpl implements JmmOptimization {
         JmmNode add;
         if (TypeUtils.isBoolean(type)) {
             result = value == 1 ? "true" : "false";
-            add = new JmmNodeImpl(Arrays.asList(BOOLEAN_LITERAL.getNodeName()));
+            add = new JmmNodeImpl(Collections.singletonList(BOOLEAN_LITERAL.getNodeName()));
         } else {
-            add = new JmmNodeImpl(Arrays.asList(INTEGER_LITERAL.getNodeName()));
+            add = new JmmNodeImpl(Collections.singletonList(INTEGER_LITERAL.getNodeName()));
         }
         add.put("value", result);
 
@@ -608,9 +607,6 @@ public class JmmOptimizationImpl implements JmmOptimization {
     }
 
     // this pass will transform calls to varargs methods with calls with arrays
-    // example:
-    // public int foo(int... a) { return a[0]; }
-    // this.foo(1, 2, 3); -> this.foo([1,2,3]);
     private void inPlaceArrayForVarArgs(JmmNode node, SymbolTable table) {
         dfsReplaceVarArgCalls(node, table);
     }
