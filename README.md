@@ -12,6 +12,21 @@ This project implements the **frontend phase** of a Java Minus Minus (Jmm) compi
 - **Modular Analysis Passes:** Implementation of multiple analysis passes to validate expressions, detect type errors, and enforce language rules.
 - **Symbol Table:** Construction of a symbol table to store variable and function declarations, enabling efficient scope and type resolution.
 
+## OLLIR Generation
+
+- **Code Generation:** The compiler generates OLLIR (Optimized Low-Level Intermediate Representation) code from the Abstract Syntax Tree (AST) using a visitor pattern.
+- **Expression Handling:** Handles complex expressions, including binary operations, method calls, and array accesses, while ensuring type correctness.
+- **Control Flow:** Generates OLLIR code for control flow constructs like `if` statements and `while` loops.
+- **Field and Method Management:** Supports field access, method declarations, and invocations, including static and instance methods.
+
+## Optimizations
+
+- **Constant Propagation and Folding:** Identifies and replaces constant expressions to simplify the code and reduce runtime computations.
+- **Register Allocation:** Implements a register allocation strategy to minimize the number of registers required during execution.
+- **Dead Code Elimination:** Removes unused variables and unreachable code to optimize the generated OLLIR.
+- **Array Handling:** Transforms calls to varargs methods into array-based calls for better compatibility and performance.
+- **Control Flow Graphs:** Builds control flow graphs (CFGs) for methods to analyze and optimize live variable usage.
+
 ## Group Members
 
 - João Santos (202205794) - 33%
