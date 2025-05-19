@@ -141,15 +141,225 @@ public class JasminGenerator {
 
     private void generateInstructions(Method method) {
         for (Instruction instruction : method.getInstructions()) {
-            // Example: handle CALL instructions
-            if (instruction.getInstType() == InstructionType.CALL) {
-                CallInstruction call = (CallInstruction) instruction;
-                // Generate code for loading arguments, then:
-                jasminCode.append("    invokevirtual ArrayAsArg/yourMethod([I)I\n");
+            switch (instruction.getInstType()) {
+                case CALL -> generateCallInstruction((CallInstruction) instruction);
+                case ASSIGN -> generateAssignInstruction((AssignInstruction) instruction);
+                case RETURN -> generateReturnInstruction((ReturnInstruction) instruction);
+                case BINARYOPER -> generateBinaryOperInstruction((BinaryOpInstruction) instruction);
+                // ... other cases ...
+                default -> jasminCode.append("    // TODO: handle ").append(instruction.getInstType()).append("\n");
             }
-            // Handle other instruction types similarly
+        }
+    }
 
+    private void generateCallInstruction(CallInstruction call) {
+        // Get method name safely
+        String methodName;
+        Element methodElem = call.getMethodName();
+        if (methodElem instanceof Operand operand) {
+            methodName = operand.getName();
+        } else if (methodElem instanceof LiteralElement literal) {
+            methodName = literal.getLiteral();
+        } else {
+            jasminCode.append("    // TODO: handle unknown method name type\n");
+            return;
+        }
 
+        // Get class name from first operand
+        Element firstOperand = call.getOperands().get(0);
+        String className = ((ClassType) firstOperand.getType()).getName();
+        List<Element> args = call.getOperands().subList(1, call.getOperands().size());
+
+        // Load object reference (for instance methods)
+        jasminCode.append("    aload_0\n");
+
+        // Load arguments (use variable table for correct indices)
+        for (Element arg : args) {
+            if (arg instanceof Operand operand) {
+                int index = currentMethod.getVarTable().get(operand.getName()).getVirtualReg();
+                if (arg.getType() instanceof ArrayType) {
+                    jasminCode.append("    aload_").append(index).append("\n");
+                } else if (arg.getType() instanceof BuiltinType builtinType) {
+                    switch (builtinType.getKind()) {
+                        case INT32, BOOLEAN -> jasminCode.append("    iload_").append(index).append("\n");
+                        default -> jasminCode.append("    // TODO: handle type\n");
+                    }
+                }
+            }
+            else if (arg instanceof LiteralElement literal) {
+                String lit = literal.getLiteral();
+                try {
+                    int value = Integer.parseInt(lit);
+                    if (value >= -1 && value <= 5) {
+                        jasminCode.append("    iconst_").append(value).append("\n");
+                    } else if (value >= -128 && value <= 127) {
+                        jasminCode.append("    bipush ").append(value).append("\n");
+                    } else if (value >= -32768 && value <= 32767) {
+                        jasminCode.append("    sipush ").append(value).append("\n");
+                    } else {
+                        jasminCode.append("    ldc ").append(value).append("\n");
+                    }
+                } catch (NumberFormatException e) {
+                    // Not a number, handle as string or skip
+                    jasminCode.append("    ldc \"").append(lit).append("\"\n");
+                }
+            }
+            else {
+                jasminCode.append("    // TODO: handle arg type\n");
+            }
+        }
+
+        // Build method signature
+        StringBuilder sig = new StringBuilder();
+        sig.append("(");
+        for (Element arg : args) {
+            sig.append(jasminUtils.getJasminType(arg.getType()));
+        }
+        sig.append(")");
+        sig.append(jasminUtils.getJasminType(call.getReturnType()));
+
+        jasminCode.append("    invokevirtual ")
+                .append(className)
+                .append("/")
+                .append(methodName)
+                .append(sig)
+                .append("\n");
+    }
+
+    private void generateAssignInstruction(AssignInstruction assign) {
+        // Left: variable name
+        String varName = ((Operand) assign.getDest()).getName();
+        int varIndex = currentMethod.getVarTable().get(varName).getVirtualReg();;
+
+        // Right: SingleOpInstruction or BinaryOpInstruction
+        Instruction rhs = assign.getRhs();
+        if (rhs instanceof SingleOpInstruction singleOp) {
+            Element elem = singleOp.getSingleOperand();
+            if (elem instanceof LiteralElement literal) {
+                int value = Integer.parseInt(literal.getLiteral());
+                if (value >= -1 && value <= 5) {
+                    jasminCode.append("    iconst_").append(value).append("\n");
+                } else if (value >= -128 && value <= 127) {
+                    jasminCode.append("    bipush ").append(value).append("\n");
+                } else if (value >= -32768 && value <= 32767) {
+                    jasminCode.append("    sipush ").append(value).append("\n");
+                } else {
+                    jasminCode.append("    ldc ").append(value).append("\n");
+                }
+            } else if (elem instanceof Operand operand) {
+                int srcIndex = currentMethod.getVarTable().get(varName).getVirtualReg();
+                if (elem.getType() instanceof ArrayType) {
+                    jasminCode.append("    aload_").append(srcIndex).append("\n");
+                    jasminCode.append("    astore_").append(varIndex).append("\n");
+                    return;
+                } else {
+                    jasminCode.append("    iload_").append(srcIndex).append("\n");
+                }
+            }
+            // Store result
+            if (assign.getDest().getType() instanceof ArrayType) {
+                jasminCode.append("    astore_").append(varIndex).append("\n");
+            } else {
+                jasminCode.append("    istore_").append(varIndex).append("\n");
+            }
+        } else if (rhs instanceof BinaryOpInstruction bin) {
+            generateBinaryOperInstruction(bin);
+            jasminCode.append("    istore_").append(varIndex).append("\n");
+        } else {
+            jasminCode.append("    // TODO: handle assign rhs type\n");
+        }
+    }
+
+    private void generateReturnInstruction(ReturnInstruction ret) {
+        if (ret.getOperand().isPresent()) {
+            Element elem = ret.getOperand().get();
+            if (elem instanceof Operand operand) {
+                int index = currentMethod.getVarTable().get(operand.getName()).getVirtualReg();
+                if (elem.getType() instanceof ArrayType) {
+                    jasminCode.append("    aload_").append(index).append("\n    areturn\n");
+                } else if (elem.getType() instanceof BuiltinType builtinType) {
+                    switch (builtinType.getKind()) {
+                        case INT32, BOOLEAN -> jasminCode.append("    iload_").append(index).append("\n    ireturn\n");
+                        default -> jasminCode.append("    // TODO: handle return type\n");
+                    }
+                }
+            } else if (elem instanceof LiteralElement literal) {
+                int value = Integer.parseInt(literal.getLiteral());
+                if (value >= -1 && value <= 5) {
+                    jasminCode.append("    iconst_").append(value).append("\n");
+                } else if (value >= -128 && value <= 127) {
+                    jasminCode.append("    bipush ").append(value).append("\n");
+                } else if (value >= -32768 && value <= 32767) {
+                    jasminCode.append("    sipush ").append(value).append("\n");
+                } else {
+                    jasminCode.append("    ldc ").append(value).append("\n");
+                }
+                jasminCode.append("    ireturn\n");
+            }
+        } else {
+            jasminCode.append("    return\n");
+        }
+    }
+
+    private void generateBinaryOperInstruction(BinaryOpInstruction bin) {
+        // Get left and right operands
+        Element left = bin.getLeftOperand();
+        Element right = bin.getRightOperand();
+
+        // Load left operand
+        if (left instanceof Operand operand) {
+            int index = currentMethod.getVarTable().get(operand.getName()).getVirtualReg();
+            jasminCode.append("    iload_").append(index).append("\n");
+        } else if (left instanceof LiteralElement literal) {
+            int value = Integer.parseInt(literal.getLiteral());
+            if (value >= -1 && value <= 5) {
+                jasminCode.append("    iconst_").append(value).append("\n");
+            } else if (value >= -128 && value <= 127) {
+                jasminCode.append("    bipush ").append(value).append("\n");
+            } else if (value >= -32768 && value <= 32767) {
+                jasminCode.append("    sipush ").append(value).append("\n");
+            } else {
+                jasminCode.append("    ldc ").append(value).append("\n");
+            }
+        }
+
+        // Load right operand
+        if (right instanceof Operand operand) {
+            int index = currentMethod.getVarTable().get(operand.getName()).getVirtualReg();
+            jasminCode.append("    iload_").append(index).append("\n");
+        } else if (right instanceof LiteralElement literal) {
+            int value = Integer.parseInt(literal.getLiteral());
+            if (value >= -1 && value <= 5) {
+                jasminCode.append("    iconst_").append(value).append("\n");
+            } else if (value >= -128 && value <= 127) {
+                jasminCode.append("    bipush ").append(value).append("\n");
+            } else if (value >= -32768 && value <= 32767) {
+                jasminCode.append("    sipush ").append(value).append("\n");
+            } else {
+                jasminCode.append("    ldc ").append(value).append("\n");
+            }
+        }
+
+        // Emit operation
+        switch (bin.getOperation().getOpType()) {
+            case ADD -> jasminCode.append("    iadd\n");
+            case SUB -> jasminCode.append("    isub\n");
+            case MUL -> jasminCode.append("    imul\n");
+            case DIV -> jasminCode.append("    idiv\n");
+            case AND -> jasminCode.append("    iand\n");
+            case OR -> jasminCode.append("    ior\n");
+            case LTH -> {
+                String trueLabel = getNextLabel();
+                String endLabel = getNextLabel();
+                jasminCode.append("    if_icmplt ").append(trueLabel).append("\n");
+                jasminCode.append("    iconst_0\n");
+                jasminCode.append("    goto ").append(endLabel).append("\n");
+                jasminCode.append(trueLabel).append(":\n");
+                jasminCode.append("    iconst_1\n");
+                jasminCode.append(endLabel).append(":\n");
+            }
+            // Add more as needed
+            default -> jasminCode.append("    // TODO: handle binary op\n");
         }
     }
 
