@@ -1,242 +1,264 @@
 package pt.up.fe.comp2025.backend;
 
-import org.specs.comp.ollir.ClassUnit;
-import org.specs.comp.ollir.LiteralElement;
+import org.specs.comp.ollir.*;
+import org.specs.comp.ollir.inst.*;
+import org.specs.comp.ollir.type.*;
 import org.specs.comp.ollir.Method;
-import org.specs.comp.ollir.Operand;
-import org.specs.comp.ollir.inst.AssignInstruction;
-import org.specs.comp.ollir.inst.BinaryOpInstruction;
-import org.specs.comp.ollir.inst.ReturnInstruction;
-import org.specs.comp.ollir.inst.SingleOpInstruction;
-import org.specs.comp.ollir.tree.TreeNode;
+import pt.up.fe.comp.jmm.jasmin.JasminResult;
 import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.comp.jmm.report.Report;
-import pt.up.fe.specs.util.classmap.FunctionClassMap;
-import pt.up.fe.specs.util.exceptions.NotImplementedException;
-import pt.up.fe.specs.util.utilities.StringLines;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
 
-/**
- * Generates Jasmin code from an OllirResult.
- * <p>
- * One JasminGenerator instance per OllirResult.
- */
+
+import java.util.*;
+
 public class JasminGenerator {
-
-    private static final String NL = "\n";
-    private static final String TAB = "   ";
-
     private final OllirResult ollirResult;
+    private final JasminUtils jasminUtils;
+    private final StringBuilder jasminCode;
+    private final ClassUnit classUnit;
+    private final List<Report> reports;
 
-    List<Report> reports;
-
-    String code;
-
-    Method currentMethod;
-
-    private final JasminUtils types;
-
-    private final FunctionClassMap<TreeNode, String> generators;
+    // Track the current method being processed for limit calculation
+    private Method currentMethod;
+    private int maxStackSize;
+    private int currentStackSize;
+    private Map<String, Integer> labelCounter;
 
     public JasminGenerator(OllirResult ollirResult) {
         this.ollirResult = ollirResult;
-
-        reports = new ArrayList<>();
-        code = null;
-        currentMethod = null;
-
-        types = new JasminUtils(ollirResult);
-
-        this.generators = new FunctionClassMap<>();
-        generators.put(ClassUnit.class, this::generateClassUnit);
-        generators.put(Method.class, this::generateMethod);
-        generators.put(AssignInstruction.class, this::generateAssign);
-        generators.put(SingleOpInstruction.class, this::generateSingleOp);
-        generators.put(LiteralElement.class, this::generateLiteral);
-        generators.put(Operand.class, this::generateOperand);
-        generators.put(BinaryOpInstruction.class, this::generateBinaryOp);
-        generators.put(ReturnInstruction.class, this::generateReturn);
-    }
-
-    private String apply(TreeNode node) {
-        var code = new StringBuilder();
-
-        // Print the corresponding OLLIR code as a comment
-        //code.append("; ").append(node).append(NL);
-
-        code.append(generators.apply(node));
-
-        return code.toString();
-    }
-
-
-    public List<Report> getReports() {
-        return reports;
+        this.jasminUtils = new JasminUtils(ollirResult);
+        this.jasminCode = new StringBuilder();
+        this.classUnit = ollirResult.getOllirClass();
+        this.reports = new ArrayList<>();
+        this.maxStackSize = 0;
+        this.currentStackSize = 0;
+        this.labelCounter = new HashMap<>();
     }
 
     public String build() {
+        // Class declaration
+        buildClassDecl();
 
-        // This way, build is idempotent
-        if (code == null) {
-            code = apply(ollirResult.getOllirClass());
-        }
+        // Fields
+        buildFields();
 
-        return code;
+        // Constructor
+        buildConstructor();
+
+        // Methods
+        buildMethods();
+
+        return jasminCode.toString();
     }
 
+    private void buildClassDecl() {
+        // Class access modifier
+        String classAccessModifier = jasminUtils.getModifier(classUnit.getClassAccessModifier());
+        jasminCode.append(".class ").append(classAccessModifier).append(classUnit.getClassName()).append("\n");
 
-    private String generateClassUnit(ClassUnit classUnit) {
+        // Super class
+        String superClass = classUnit.getSuperClass() != null ? classUnit.getSuperClass() : "java/lang/Object";
+        jasminCode.append(".super ").append(superClass.replace(".", "/")).append("\n\n");
+    }
 
-        var code = new StringBuilder();
+    private void buildFields() {
+        for (Field field : classUnit.getFields()) {
+            String accessModifier = jasminUtils.getModifier(field.getFieldAccessModifier());
+            String fieldType = jasminUtils.getJasminType(field.getFieldType());
+            jasminCode.append(".field ").append(accessModifier).append(field.getFieldName())
+                    .append(" ").append(fieldType).append("\n");
+        }
 
-        // generate class name
-        var className = ollirResult.getOllirClass().getClassName();
-        code.append(".class ").append(className).append(NL).append(NL);
+        if (!classUnit.getFields().isEmpty()) {
+            jasminCode.append("\n");
+        }
+    }
 
-        // TODO: When you support 'extends', this must be updated
-        var fullSuperClass = "java/lang/Object";
-
-        code.append(".super ").append(fullSuperClass).append(NL);
-
-        // generate a single constructor method
-        var defaultConstructor = """
-                ;default constructor
-                .method public <init>()V
-                    aload_0
-                    invokespecial %s/<init>()V
-                    return
-                .end method
-                """.formatted(fullSuperClass);
-        code.append(defaultConstructor);
-
-        // generate code for all other methods
-        for (var method : ollirResult.getOllirClass().getMethods()) {
-
-            // Ignore constructor, since there is always one constructor
-            // that receives no arguments, and has been already added
-            // previously
+    private void buildConstructor() {
+        // Check if there's already a constructor
+        boolean hasConstructor = false;
+        for (Method method : classUnit.getMethods()) {
             if (method.isConstructMethod()) {
-                continue;
+                hasConstructor = true;
+                break;
             }
-
-            code.append(apply(method));
         }
 
-        return code.toString();
+        if (!hasConstructor) {
+            jasminCode.append("; Standard constructor\n");
+            jasminCode.append(".method public <init>()V\n");
+            jasminCode.append("    aload_0\n");
+            jasminCode.append("    invokespecial ");
+
+            String superClass = classUnit.getSuperClass() != null ? classUnit.getSuperClass() : "java/lang/Object";
+            jasminCode.append(superClass.replace(".", "/")).append("/<init>()V\n");
+            jasminCode.append("    return\n");
+            jasminCode.append(".end method\n\n");
+        }
     }
 
+    private void buildMethods() {
+        for (Method method : classUnit.getMethods()) {
+            buildMethod(method);
+        }
+    }
 
-    private String generateMethod(Method method) {
-        //System.out.println("STARTING METHOD " + method.getMethodName());
-        // set method
+    private void buildMethod(Method method) {
         currentMethod = method;
+        maxStackSize = 0;
+        currentStackSize = 0;
 
-        var code = new StringBuilder();
+        // Method signature
+        String accessModifier = jasminUtils.getModifier(method.getMethodAccessModifier());
+        String methodName = method.isConstructMethod() ? "<init>" : method.getMethodName();
+        String returnType = jasminUtils.getJasminType(method.getReturnType());
 
-        // calculate modifier
-        var modifier = types.getModifier(method.getMethodAccessModifier());
+        jasminCode.append(".method ").append(accessModifier).append(methodName).append("(");
 
-        var methodName = method.getMethodName();
-
-        // TODO: Hardcoded param types and return type, needs to be expanded
-        var params = "I";
-        var returnType = "I";
-
-        code.append("\n.method ").append(modifier)
-                .append(methodName)
-                .append("(" + params + ")" + returnType).append(NL);
-
-        // Add limits
-        code.append(TAB).append(".limit stack 99").append(NL);
-        code.append(TAB).append(".limit locals 99").append(NL);
-
-        for (var inst : method.getInstructions()) {
-            var instCode = StringLines.getLines(apply(inst)).stream()
-                    .collect(Collectors.joining(NL + TAB, TAB, NL));
-
-            code.append(instCode);
+        // Parameters
+        for (Element param : method.getParams()) {
+            jasminCode.append(jasminUtils.getJasminType(param.getType()));
         }
 
-        code.append(".end method\n");
+        jasminCode.append(")").append(returnType).append("\n");
 
-        // unset method
-        currentMethod = null;
-        //System.out.println("ENDING METHOD " + method.getMethodName());
-        return code.toString();
+        // Calculate limits before processing instructions
+        int limitLocals = calculateLimitLocals(method);
+
+        // Process instructions to calculate stack size
+        calculateStackSize(method);
+
+        // Add the limits
+        jasminCode.append("    .limit stack ").append(maxStackSize).append("\n");
+        jasminCode.append("    .limit locals ").append(limitLocals).append("\n");
+
+        // Method instructions
+        generateInstructions(method);
+
+        jasminCode.append(".end method\n\n");
     }
 
-    private String generateAssign(AssignInstruction assign) {
-        var code = new StringBuilder();
+    private void generateInstructions(Method method) {
+        for (Instruction instruction : method.getInstructions()) {
+            // Example: handle CALL instructions
+            if (instruction.getInstType() == InstructionType.CALL) {
+                CallInstruction call = (CallInstruction) instruction;
+                // Generate code for loading arguments, then:
+                jasminCode.append("    invokevirtual ArrayAsArg/yourMethod([I)I\n");
+            }
+            // Handle other instruction types similarly
 
-        // generate code for loading what's on the right
-        code.append(apply(assign.getRhs()));
 
-        // store value in the stack in destination
-        var lhs = assign.getDest();
+        }
+    }
 
-        if (!(lhs instanceof Operand)) {
-            throw new NotImplementedException(lhs.getClass());
+    private int calculateLimitLocals(Method method) {
+        // If this is an instance method, register 0 is used for 'this'
+        int count = method.isStaticMethod() ? 0 : 1;
+
+        // Parameters
+        count += method.getParams().size();
+
+        // Local variables
+        int maxVarIndex = -1;
+        for (Descriptor descriptor : method.getVarTable().values()) {
+            int varIndex = descriptor.getVirtualReg();
+            maxVarIndex = Math.max(maxVarIndex, varIndex);
         }
 
-        var operand = (Operand) lhs;
-
-        // get register
-        var reg = currentMethod.getVarTable().get(operand.getName());
-
-
-        // TODO: Hardcoded for int type, needs to be expanded
-        code.append("istore ").append(reg.getVirtualReg()).append(NL);
-
-        return code.toString();
+        // The total number of locals is max index + 1
+        return Math.max(count, maxVarIndex + 1);
     }
 
-    private String generateSingleOp(SingleOpInstruction singleOp) {
-        return apply(singleOp.getSingleOperand());
+    private void calculateStackSize(Method method) {
+        // Reset stack counters
+        maxStackSize = 0;
+        currentStackSize = 0;
+
+        // We'll analyze each instruction to determine the stack effect
+        for (Instruction instruction : method.getInstructions()) {
+            analyzeInstructionStack(instruction);
+        }
     }
 
-    private String generateLiteral(LiteralElement literal) {
-        return "ldc " + literal.getLiteral() + NL;
+    private void analyzeInstructionStack(Instruction instruction) {
+        InstructionType instType = instruction.getInstType();
+
+        if (instType == InstructionType.ASSIGN) {
+            analyzeAssignStack((AssignInstruction) instruction);
+        } else if (instType == InstructionType.CALL) {
+            analyzeCallStack((CallInstruction) instruction);
+        } else if (instType == InstructionType.GOTO) {
+            // No stack effect
+        } else if (instType == InstructionType.BRANCH) {
+            analyzeBranchStack((CondBranchInstruction) instruction);
+        } else if (instType == InstructionType.RETURN) {
+            analyzeReturnStack((ReturnInstruction) instruction);
+        } else if (instType == InstructionType.PUTFIELD) {
+            analyzePutFieldStack((PutFieldInstruction) instruction);
+        } else if (instType == InstructionType.GETFIELD) {
+            analyzeGetFieldStack((GetFieldInstruction) instruction);
+        } else if (instType == InstructionType.UNARYOPER) {
+            analyzeUnaryOperStack((UnaryOpInstruction) instruction);
+        } else if (instType == InstructionType.BINARYOPER) {
+            analyzeBinaryOperStack((BinaryOpInstruction) instruction);
+        } else if (instType == InstructionType.NOPER) {
+            // No operation, no stack effect
+        }
     }
 
-    private String generateOperand(Operand operand) {
-        // get register
-        var reg = currentMethod.getVarTable().get(operand.getName());
+    private void analyzeReturnStack(ReturnInstruction instruction) {
 
-        // TODO: Hardcoded for int type, needs to be expanded
-        return "iload " + reg.getVirtualReg() + NL;
     }
 
-    private String generateBinaryOp(BinaryOpInstruction binaryOp) {
-        var code = new StringBuilder();
-
-        // load values on the left and on the right
-        code.append(apply(binaryOp.getLeftOperand()));
-        code.append(apply(binaryOp.getRightOperand()));
-
-        // TODO: Hardcoded for int type, needs to be expanded
-        var typePrefix = "i";
-
-        // apply operation
-        var op = switch (binaryOp.getOperation().getOpType()) {
-            case ADD -> "add";
-            case MUL -> "mul";
-            default -> throw new NotImplementedException(binaryOp.getOperation().getOpType());
-        };
-
-        code.append(typePrefix + op).append(NL);
-
-        return code.toString();
+    private void analyzeCallStack(CallInstruction instruction) {
+        
     }
 
-    private String generateReturn(ReturnInstruction returnInst) {
-        var code = new StringBuilder();
+    private void analyzeBinaryOperStack(BinaryOpInstruction instruction) {
+    }
 
-        // TODO: Hardcoded for int type, needs to be expanded
-        code.append("ireturn").append(NL);
+    private void analyzeUnaryOperStack(UnaryOpInstruction instruction) {
+        
+    }
 
-        return code.toString();
+    private void analyzeGetFieldStack(GetFieldInstruction instruction) {
+        
+    }
+
+    private void analyzePutFieldStack(PutFieldInstruction instruction) {
+        
+    }
+
+    private void analyzeAssignStack(AssignInstruction instruction) {
+        
+    }
+
+    private void analyzeBranchStack(CondBranchInstruction instruction) {
+        
+    }
+
+
+
+    private void updateStackSize(int delta) {
+        currentStackSize += delta;
+        if (currentStackSize < 0) {
+            currentStackSize = 0; // Stack can't be negative
+        }
+        maxStackSize = Math.max(maxStackSize, currentStackSize);
+    }
+
+    // Helper methods for label generation
+    private String getNextLabel() {
+        String prefix = "label";
+        int count = labelCounter.getOrDefault(prefix, 0) + 1;
+        labelCounter.put(prefix, count);
+        return prefix + count;
+    }
+
+    // Return reports for errors/warnings
+    public List<Report> getReports() {
+        return reports;
     }
 }
