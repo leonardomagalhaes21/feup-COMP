@@ -18,6 +18,9 @@ public class JasminGenerator {
     private final StringBuilder jasminCode;
     private final ClassUnit classUnit;
     private final List<Report> reports;
+    private final Map<String, String> importFullNames;
+    private static final String TAB = "    ";
+    private static final String NL = "\n";
 
     // Track the current method being processed for limit calculation
     private Method currentMethod;
@@ -34,6 +37,7 @@ public class JasminGenerator {
         this.maxStackSize = 0;
         this.currentStackSize = 0;
         this.labelCounter = new HashMap<>();
+        this.importFullNames = new HashMap<>();
     }
 
     public String build() {
@@ -76,7 +80,7 @@ public class JasminGenerator {
     }
 
     private void buildConstructor() {
-        // Check if there's already a constructor
+        // Only add if not already present
         boolean hasConstructor = false;
         for (Method method : classUnit.getMethods()) {
             if (method.isConstructMethod()) {
@@ -84,18 +88,17 @@ public class JasminGenerator {
                 break;
             }
         }
-
         if (!hasConstructor) {
-            jasminCode.append(";default constructor\n");
-            jasminCode.append(".method public <init>()V\n");
+            jasminCode.append(".method <init>()V\n");
             jasminCode.append("    .limit stack 1\n");
             jasminCode.append("    .limit locals 1\n");
             jasminCode.append("    aload_0\n");
             jasminCode.append("    invokespecial java/lang/Object/<init>()V\n");
-            jasminCode.append("    return\n"); // Critical: missing return statement
+            jasminCode.append("    return\n");
             jasminCode.append(".end method\n\n");
         }
     }
+
 
     private void buildMethods() {
         for (Method method : classUnit.getMethods()) {
@@ -110,10 +113,16 @@ public class JasminGenerator {
 
         // Method signature
         String accessModifier = jasminUtils.getModifier(method.getMethodAccessModifier());
+        String staticModifier = method.isStaticMethod() ? "static " : "";
         String methodName = method.isConstructMethod() ? "<init>" : method.getMethodName();
         String returnType = jasminUtils.getJasminType(method.getReturnType());
 
-        jasminCode.append(".method ").append(accessModifier).append(methodName).append("(");
+
+        jasminCode.append(".method ")
+                .append(accessModifier)
+                .append(staticModifier)
+                .append(methodName)
+                .append("(");
 
         // Parameters
         for (Element param : method.getParams()) {
@@ -138,13 +147,43 @@ public class JasminGenerator {
         jasminCode.append(".end method\n\n");
     }
 
+    private void addImportFullNames(ClassUnit classUnit) {
+        for (var imp : classUnit.getImports()) {
+            String importNonQualified = imp.substring(imp.lastIndexOf(".") + 1);
+            imp = imp.replace(".", "/");
+            importFullNames.put(importNonQualified, imp);
+        }
+    }
+
+
+
+    private String formatJasmin(String code) {
+        var lines = code.split("\n");
+        var formatted = new StringBuilder();
+        var indent = 0;
+        for (var line : lines) {
+            if (line.startsWith(".end")) {
+                indent--;
+            }
+            formatted.append(TAB.repeat(Math.max(0, indent))).append(line).append(NL);
+            if (line.startsWith(".method")) {
+                indent++;
+            }
+        }
+        System.out.println(formatted.toString());
+        return formatted.toString();
+    }
+
 
     private void generateInstructions(Method method) {
-        // Process all instructions
+        boolean hasReturn = false;
         for (Instruction instruction : method.getInstructions()) {
             // Get labels from method's label map
             for (String label : method.getLabels(instruction)) {
                 generateLabelInstruction(label);
+            }
+            if (instruction instanceof ReturnInstruction) {
+                hasReturn = true;
             }
 
             switch (instruction.getInstType()) {
@@ -159,6 +198,11 @@ public class JasminGenerator {
                 case NOPER -> { /* No operation */ }
                 default -> jasminCode.append("    ; Unhandled instruction type: ").append(instruction.getInstType()).append("\n");
             }
+        }
+        if (!hasReturn
+                && method.getReturnType() instanceof BuiltinType builtin
+                && builtin.getKind() == BuiltinKind.VOID) {
+            jasminCode.append("    return\n");
         }
     }
 
@@ -176,17 +220,33 @@ public class JasminGenerator {
             return;
         }
 
+
         Element firstOperand = call.getOperands().get(0);
+        List<Element> args = call.getOperands().subList(1, call.getOperands().size());
+
+        // Detect static call to io.print/println
         boolean isStatic = firstOperand instanceof Operand
                 && firstOperand.getType() instanceof ClassType
                 && !methodName.equals("<init>");
+        ClassType classType = isStatic ? (ClassType) firstOperand.getType() : null;
+
+        if (isStatic && classType != null && classType.getName().equals("io")
+                && (methodName.equals("print") || methodName.equals("println"))) {
+            jasminCode.append("    getstatic java/lang/System/out Ljava/io/PrintStream;\n");
+            generateElementCode(args.get(0));
+            String argType = jasminUtils.getJasminType(args.get(0).getType());
+            jasminCode.append("    invokevirtual java/io/PrintStream/")
+                    .append(methodName)
+                    .append("(")
+                    .append(argType)
+                    .append(")V\n");
+            return;
+        }
 
         // Load arguments
         if (!isStatic) {
             generateElementCode(firstOperand);
         }
-
-        List<Element> args = call.getOperands().subList(1, call.getOperands().size());
         for (Element arg : args) {
             generateElementCode(arg);
         }
@@ -201,7 +261,7 @@ public class JasminGenerator {
 
         // Determine class name for method call
         String className;
-        if (isStatic && firstOperand.getType() instanceof ClassType classType) {
+        if (isStatic && classType != null) {
             className = classType.getName();
         } else if (methodName.equals("<init>")) {
             className = "java/lang/Object";
@@ -274,6 +334,22 @@ public class JasminGenerator {
                     .append(fieldType).append("\n");
         } else {
             int varIndex = varDesc.getVirtualReg();
+
+            // Optimization: iinc for var = var + const
+            if (rhs instanceof BinaryOpInstruction bin
+                    && bin.getOperation().getOpType() == OperationType.ADD
+                    && bin.getLeftOperand() instanceof Operand left
+                    && bin.getRightOperand() instanceof LiteralElement rightLit
+                    && left.getName().equals(varName)) {
+                try {
+                    int incValue = Integer.parseInt(rightLit.getLiteral());
+                    jasminCode.append("    iinc ").append(varIndex).append(" ").append(incValue).append("\n");
+                    return;
+                } catch (NumberFormatException ignored) {
+                    // Fallback to normal codegen if not a valid int
+                }
+            }
+
             if (rhs instanceof SingleOpInstruction singleOp) {
                 Element elem = singleOp.getSingleOperand();
                 generateElementCode(elem);
@@ -339,27 +415,23 @@ public class JasminGenerator {
         }
     }
 
-    private void generatePutFieldInstruction(PutFieldInstruction instruction) {
-        // Load object reference (first operand is the object)
-        Element firstArg = instruction.getOperands().get(0);
-        generateElementCode(firstArg);
+    private void generateGetFieldInstruction(GetFieldInstruction instruction) {
+        // Load the object reference
+        Element objectElem = instruction.getOperands().get(0);
+        generateElementCode(objectElem);
 
-        // Load value to store (second operand is the value)
-        Element secondArg = instruction.getOperands().get(2);
-        generateElementCode(secondArg);
-
-        // Get field info
-        String fieldName = ((Operand)instruction.getOperands().get(1)).getName();
+        // Get the field name and type
+        String fieldName = ((Operand) instruction.getOperands().get(1)).getName();
         Type fieldType = instruction.getFieldType();
         String fieldTypeStr = jasminUtils.getJasminType(fieldType);
 
         // Get class name
-        String className = firstArg.getType() instanceof ClassType ?
-                ((ClassType) firstArg.getType()).getName() :
+        String className = objectElem.getType() instanceof ClassType ?
+                ((ClassType) objectElem.getType()).getName() :
                 classUnit.getClassName();
 
-        // Generate putfield instruction
-        jasminCode.append("    putfield ")
+        // Generate getfield instruction
+        jasminCode.append("    getfield ")
                 .append(className.replace('.', '/'))
                 .append("/")
                 .append(fieldName)
@@ -368,23 +440,27 @@ public class JasminGenerator {
                 .append("\n");
     }
 
-    private void generateGetFieldInstruction(GetFieldInstruction instruction) {
-        // Load the object reference
-        Element firstArg = instruction.getOperands().get(0);
-        generateElementCode(firstArg);
+    private void generatePutFieldInstruction(PutFieldInstruction instruction) {
+        // Load object reference (first operand is the object)
+        Element objectElem = instruction.getOperands().get(0);
+        generateElementCode(objectElem);
 
-        // Get the field name and type
-        String fieldName = ((Operand)instruction.getOperands().get(1)).getName();
-        Type fieldType = instruction.getFieldType(); // Use getFieldType() instead of getReturnType()
+        // Load value to store (second operand is the value)
+        Element valueElem = instruction.getOperands().get(2);
+        generateElementCode(valueElem);
+
+        // Get field info
+        String fieldName = ((Operand) instruction.getOperands().get(1)).getName();
+        Type fieldType = instruction.getFieldType();
         String fieldTypeStr = jasminUtils.getJasminType(fieldType);
 
         // Get class name
-        String className = firstArg.getType() instanceof ClassType ?
-                ((ClassType) firstArg.getType()).getName() :
+        String className = objectElem.getType() instanceof ClassType ?
+                ((ClassType) objectElem.getType()).getName() :
                 classUnit.getClassName();
 
-        // Generate getfield instruction
-        jasminCode.append("    getfield ")
+        // Generate putfield instruction
+        jasminCode.append("    putfield ")
                 .append(className.replace('.', '/'))
                 .append("/")
                 .append(fieldName)
