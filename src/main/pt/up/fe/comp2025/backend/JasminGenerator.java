@@ -256,16 +256,55 @@ public class JasminGenerator {
     }
 
     private void generateAssignInstruction(AssignInstruction assign) {
-        // Left: variable name
         String varName = ((Operand) assign.getDest()).getName();
-        int varIndex = currentMethod.getVarTable().get(varName).getVirtualReg();;
+        var varDesc = currentMethod.getVarTable().get(varName);
 
-        // Right: SingleOpInstruction or BinaryOpInstruction
+        // Check if destination is a field (not in var table)
+        boolean isField = varDesc == null;
+
         Instruction rhs = assign.getRhs();
-        if (rhs instanceof SingleOpInstruction singleOp) {
-            Element elem = singleOp.getSingleOperand();
-            if (elem instanceof LiteralElement literal) {
-                int value = Integer.parseInt(literal.getLiteral());
+
+        if (isField) {
+            // Field assignment: this.varName = <rhs>
+            jasminCode.append("    aload_0\n");
+            if (rhs instanceof SingleOpInstruction singleOp) {
+                generateElementCode(singleOp.getSingleOperand());
+            } else if (rhs instanceof BinaryOpInstruction bin) {
+                generateBinaryOperInstruction(bin);
+            }
+            String fieldType = jasminUtils.getJasminType(assign.getDest().getType());
+            jasminCode.append("    putfield ")
+                    .append(classUnit.getClassName()).append("/")
+                    .append(varName).append(" ")
+                    .append(fieldType).append("\n");
+        } else {
+            int varIndex = varDesc.getVirtualReg();
+            if (rhs instanceof SingleOpInstruction singleOp) {
+                Element elem = singleOp.getSingleOperand();
+                generateElementCode(elem);
+                if (assign.getDest().getType() instanceof ArrayType
+                        || assign.getDest().getType() instanceof ClassType
+                        || (assign.getDest().getType() instanceof BuiltinType bt && bt.getKind() == BuiltinKind.STRING)) {
+                    jasminCode.append("    astore_").append(varIndex).append("\n");
+                } else {
+                    jasminCode.append("    istore_").append(varIndex).append("\n");
+                }
+            } else if (rhs instanceof BinaryOpInstruction bin) {
+                generateBinaryOperInstruction(bin);
+                jasminCode.append("    istore_").append(varIndex).append("\n");
+            } else {
+                jasminCode.append("    ;TODO: handle assign rhs type\n");
+            }
+        }
+    }
+
+
+    // Helper to load an element (literal, local, or field)
+    private void generateElementCode(Element elem) {
+        if (elem instanceof LiteralElement literal) {
+            String lit = literal.getLiteral();
+            try {
+                int value = Integer.parseInt(lit);
                 if (value >= -1 && value <= 5) {
                     jasminCode.append("    iconst_").append(value).append("\n");
                 } else if (value >= -128 && value <= 127) {
@@ -275,29 +314,37 @@ public class JasminGenerator {
                 } else {
                     jasminCode.append("    ldc ").append(value).append("\n");
                 }
-            } else if (elem instanceof Operand operand) {
-                int srcIndex = currentMethod.getVarTable().get(varName).getVirtualReg();
-                if (elem.getType() instanceof ArrayType) {
-                    jasminCode.append("    aload_").append(srcIndex).append("\n");
-                    jasminCode.append("    astore_").append(varIndex).append("\n");
-                    return;
+            } catch (NumberFormatException e) {
+                if ("null".equals(lit)) {
+                    jasminCode.append("    aconst_null\n");
                 } else {
-                    jasminCode.append("    iload_").append(srcIndex).append("\n");
+                    jasminCode.append("    ldc \"").append(lit).append("\"\n");
                 }
             }
-            // Store result
-            if (assign.getDest().getType() instanceof ArrayType) {
-                jasminCode.append("    astore_").append(varIndex).append("\n");
+        } else if (elem instanceof Operand operand) {
+            var desc = currentMethod.getVarTable().get(operand.getName());
+            if (desc != null) {
+                int idx = desc.getVirtualReg();
+                if (elem.getType() instanceof ArrayType
+                        || elem.getType() instanceof ClassType
+                        || (elem.getType() instanceof BuiltinType bt && bt.getKind() == BuiltinKind.STRING)) {
+                    jasminCode.append("    aload_").append(idx).append("\n");
+                } else {
+                    jasminCode.append("    iload_").append(idx).append("\n");
+                }
             } else {
-                jasminCode.append("    istore_").append(varIndex).append("\n");
+                // Field access
+                jasminCode.append("    aload_0\n")
+                        .append("    getfield ")
+                        .append(classUnit.getClassName()).append("/")
+                        .append(operand.getName()).append(" ")
+                        .append(jasminUtils.getJasminType(operand.getType()))
+                        .append("\n");
             }
-        } else if (rhs instanceof BinaryOpInstruction bin) {
-            generateBinaryOperInstruction(bin);
-            jasminCode.append("    istore_").append(varIndex).append("\n");
-        } else {
-            jasminCode.append("    // TODO: handle assign rhs type\n");
         }
     }
+
+
 
     private void generateReturnInstruction(ReturnInstruction ret) {
         if (ret.getOperand().isPresent()) {
@@ -352,55 +399,9 @@ public class JasminGenerator {
         Element left = bin.getLeftOperand();
         Element right = bin.getRightOperand();
 
-        // Load left operand
-        if (left instanceof Operand operand) {
-            var desc = currentMethod.getVarTable().get(operand.getName());
-            if (desc != null) {
-                jasminCode.append("    iload_").append(desc.getVirtualReg()).append("\n");
-            } else {
-                jasminCode.append("    aload_0\n    getfield ")
-                        .append(classUnit.getClassName()).append("/")
-                        .append(operand.getName()).append(" ")
-                        .append(jasminUtils.getJasminType(operand.getType())).append("\n");
-            }
-        } else if (left instanceof LiteralElement literal) {
-            int value = Integer.parseInt(literal.getLiteral());
-            if (value >= -1 && value <= 5) {
-                jasminCode.append("    iconst_").append(value).append("\n");
-            } else if (value >= -128 && value <= 127) {
-                jasminCode.append("    bipush ").append(value).append("\n");
-            } else if (value >= -32768 && value <= 32767) {
-                jasminCode.append("    sipush ").append(value).append("\n");
-            } else {
-                jasminCode.append("    ldc ").append(value).append("\n");
-            }
-        }
+        generateElementCode(left);
+        generateElementCode(right);
 
-        // Load right operand
-        if (right instanceof Operand operand) {
-            var desc = currentMethod.getVarTable().get(operand.getName());
-            if (desc != null) {
-                jasminCode.append("    iload_").append(desc.getVirtualReg()).append("\n");
-            } else {
-                jasminCode.append("    aload_0\n    getfield ")
-                        .append(classUnit.getClassName()).append("/")
-                        .append(operand.getName()).append(" ")
-                        .append(jasminUtils.getJasminType(operand.getType())).append("\n");
-            }
-        } else if (right instanceof LiteralElement literal) {
-            int value = Integer.parseInt(literal.getLiteral());
-            if (value >= -1 && value <= 5) {
-                jasminCode.append("    iconst_").append(value).append("\n");
-            } else if (value >= -128 && value <= 127) {
-                jasminCode.append("    bipush ").append(value).append("\n");
-            } else if (value >= -32768 && value <= 32767) {
-                jasminCode.append("    sipush ").append(value).append("\n");
-            } else {
-                jasminCode.append("    ldc ").append(value).append("\n");
-            }
-        }
-
-        // Emit operation
         switch (bin.getOperation().getOpType()) {
             case ADD -> jasminCode.append("    iadd\n");
             case SUB -> jasminCode.append("    isub\n");
@@ -461,7 +462,6 @@ public class JasminGenerator {
             default -> {}
         }
     }
-
     private int calculateLimitLocals(Method method) {
         // If this is an instance method, register 0 is used for 'this'
         int count = method.isStaticMethod() ? 0 : 1;
@@ -547,6 +547,11 @@ public class JasminGenerator {
     private void analyzeBranchStack(CondBranchInstruction instruction) {
         
     }
+
+
+
+
+
 
 
 
