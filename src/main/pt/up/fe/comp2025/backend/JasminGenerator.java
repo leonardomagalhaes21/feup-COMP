@@ -91,11 +91,8 @@ public class JasminGenerator {
             jasminCode.append("    .limit stack 1\n");
             jasminCode.append("    .limit locals 1\n");
             jasminCode.append("    aload_0\n");
-            String superClass = classUnit.getSuperClass() != null ? classUnit.getSuperClass() : "java/lang/Object";
-            jasminCode.append("    invokespecial ")
-                    .append(superClass.replace(".", "/"))
-                    .append("/<init>()V\n");
-            jasminCode.append("    return\n");
+            jasminCode.append("    invokespecial java/lang/Object/<init>()V\n");
+            jasminCode.append("    return\n"); // Critical: missing return statement
             jasminCode.append(".end method\n\n");
         }
     }
@@ -132,7 +129,7 @@ public class JasminGenerator {
         calculateStackSize(method);
 
         // Add the limits
-        jasminCode.append("    .limit stack ").append(maxStackSize).append("\n");
+        jasminCode.append("    .limit stack ").append(Math.max(2, maxStackSize)).append("\n");
         jasminCode.append("    .limit locals ").append(limitLocals).append("\n");
 
         // Method instructions
@@ -141,21 +138,33 @@ public class JasminGenerator {
         jasminCode.append(".end method\n\n");
     }
 
+
     private void generateInstructions(Method method) {
+        // Process all instructions
         for (Instruction instruction : method.getInstructions()) {
+            // Get labels from method's label map
+            for (String label : method.getLabels(instruction)) {
+                generateLabelInstruction(label);
+            }
+
             switch (instruction.getInstType()) {
                 case CALL -> generateCallInstruction((CallInstruction) instruction);
                 case ASSIGN -> generateAssignInstruction((AssignInstruction) instruction);
                 case RETURN -> generateReturnInstruction((ReturnInstruction) instruction);
                 case BINARYOPER -> generateBinaryOperInstruction((BinaryOpInstruction) instruction);
-                // ... other cases ...
-                default -> jasminCode.append("    ;TODO: handle ").append(instruction.getInstType()).append("\n");
+                case BRANCH -> generateBranchInstruction((CondBranchInstruction) instruction);
+                case GOTO -> generateGotoInstruction((GotoInstruction) instruction);
+                case PUTFIELD -> generatePutFieldInstruction((PutFieldInstruction) instruction);
+                case GETFIELD -> generateGetFieldInstruction((GetFieldInstruction) instruction);
+                case NOPER -> { /* No operation */ }
+                default -> jasminCode.append("    ; Unhandled instruction type: ").append(instruction.getInstType()).append("\n");
             }
         }
     }
 
+
+
     private void generateCallInstruction(CallInstruction call) {
-        // Get method name
         String methodName;
         Element methodElem = call.getMethodName();
         if (methodElem instanceof Operand operand) {
@@ -167,54 +176,19 @@ public class JasminGenerator {
             return;
         }
 
-        // Get class name or object reference
         Element firstOperand = call.getOperands().get(0);
-        String className = firstOperand.getType() instanceof ClassType classType
-                ? classType.getName()
-                : "java/lang/Object";
-
-        // Load object reference for instance methods (except static)
-        if (!methodName.equals("<init>")) {
-            int refIndex = currentMethod.getVarTable().get(((Operand) firstOperand).getName()).getVirtualReg();
-            jasminCode.append("    aload_").append(refIndex).append("\n");
-        }
+        boolean isStatic = firstOperand instanceof Operand
+                && firstOperand.getType() instanceof ClassType
+                && !methodName.equals("<init>");
 
         // Load arguments
+        if (!isStatic) {
+            generateElementCode(firstOperand);
+        }
+
         List<Element> args = call.getOperands().subList(1, call.getOperands().size());
         for (Element arg : args) {
-            if (arg instanceof Operand operand) {
-                int index = currentMethod.getVarTable().get(operand.getName()).getVirtualReg();
-                if (arg.getType() instanceof ArrayType
-                        || arg.getType() instanceof ClassType
-                        || (arg.getType() instanceof BuiltinType bt && bt.getKind() == BuiltinKind.STRING)) {
-                    jasminCode.append("    aload_").append(index).append("\n");
-                } else if (arg.getType() instanceof BuiltinType builtinType) {
-                    switch (builtinType.getKind()) {
-                        case INT32, BOOLEAN -> jasminCode.append("    iload_").append(index).append("\n");
-                        default -> jasminCode.append("    ;Unsupported builtin type\n");
-                    }
-                } else {
-                    jasminCode.append("    ;Unsupported operand type\n");
-                }
-            } else if (arg instanceof LiteralElement literal) {
-                String lit = literal.getLiteral();
-                try {
-                    int value = Integer.parseInt(lit);
-                    if (value >= -1 && value <= 5) {
-                        jasminCode.append("    iconst_").append(value).append("\n");
-                    } else if (value >= -128 && value <= 127) {
-                        jasminCode.append("    bipush ").append(value).append("\n");
-                    } else if (value >= -32768 && value <= 32767) {
-                        jasminCode.append("    sipush ").append(value).append("\n");
-                    } else {
-                        jasminCode.append("    ldc ").append(value).append("\n");
-                    }
-                } catch (NumberFormatException e) {
-                    jasminCode.append("    ldc \"").append(lit).append("\"\n");
-                }
-            } else {
-                jasminCode.append("    ;Unsupported argument type\n");
-            }
+            generateElementCode(arg);
         }
 
         // Build method signature
@@ -225,35 +199,56 @@ public class JasminGenerator {
         }
         sig.append(")").append(jasminUtils.getJasminType(call.getReturnType()));
 
-        // Add invocation instruction
-        if (methodName.equals("<init>")) {
+        // Determine class name for method call
+        String className;
+        if (isStatic && firstOperand.getType() instanceof ClassType classType) {
+            className = classType.getName();
+        } else if (methodName.equals("<init>")) {
+            className = "java/lang/Object";
+        } else {
+            className = classUnit.getClassName();
+        }
+
+        // Generate appropriate invocation instruction
+        if (isStatic) {
+            jasminCode.append("    invokestatic ");
+        } else if (methodName.equals("<init>")) {
             jasminCode.append("    invokespecial ");
         } else {
             jasminCode.append("    invokevirtual ");
         }
-        jasminCode.append(className.replace('.', '/')).append("/").append(methodName).append(sig).append("\n");
 
-        // Handle return value if not void
-        Type retType = call.getReturnType();
-        boolean isVoid = (retType instanceof BuiltinType bt) && bt.getKind() == BuiltinKind.VOID;
-        if (!isVoid) {
-            if (retType instanceof ArrayType
-                    || retType instanceof ClassType
-                    || (retType instanceof BuiltinType bt && bt.getKind() == BuiltinKind.STRING)) {
-                // The result is left on the stack, to be stored by the caller
-                // No action needed here
-            } else if (retType instanceof BuiltinType builtinType) {
-                switch (builtinType.getKind()) {
-                    case INT32, BOOLEAN -> {
-                        // The result is left on the stack, to be stored by the caller
-                    }
-                    default -> jasminCode.append("    ;Unsupported return type\n");
-                }
-            } else {
-                jasminCode.append("    ;Unsupported return type\n");
-            }
-        }
+        jasminCode.append(className.replace('.', '/'))
+                .append("/")
+                .append(methodName)
+                .append(sig)
+                .append("\n");
     }
+
+    private void generateBranchInstruction(CondBranchInstruction branch) {
+        Instruction condition = branch.getCondition();
+
+        // Generate condition code first
+        if (condition instanceof SingleOpInstruction singleOp) {
+            generateElementCode(singleOp.getSingleOperand());
+        } else if (condition instanceof BinaryOpInstruction binOp) {
+            generateBinaryOperInstruction(binOp);
+        }
+
+        // Generate branch
+        String jumpLabel = branch.getLabel();
+        jasminCode.append("    ifne ").append(jumpLabel).append("\n");
+    }
+
+    private void generateLabelInstruction(String label) {
+        jasminCode.append(label).append(":\n");
+    }
+
+    private void generateGotoInstruction(GotoInstruction gotoInst) {
+        jasminCode.append("    goto ").append(gotoInst.getLabel()).append("\n");
+    }
+
+
 
     private void generateAssignInstruction(AssignInstruction assign) {
         String varName = ((Operand) assign.getDest()).getName();
@@ -344,6 +339,59 @@ public class JasminGenerator {
         }
     }
 
+    private void generatePutFieldInstruction(PutFieldInstruction instruction) {
+        // Load object reference (first operand is the object)
+        Element firstArg = instruction.getOperands().get(0);
+        generateElementCode(firstArg);
+
+        // Load value to store (second operand is the value)
+        Element secondArg = instruction.getOperands().get(2);
+        generateElementCode(secondArg);
+
+        // Get field info
+        String fieldName = ((Operand)instruction.getOperands().get(1)).getName();
+        Type fieldType = instruction.getFieldType();
+        String fieldTypeStr = jasminUtils.getJasminType(fieldType);
+
+        // Get class name
+        String className = firstArg.getType() instanceof ClassType ?
+                ((ClassType) firstArg.getType()).getName() :
+                classUnit.getClassName();
+
+        // Generate putfield instruction
+        jasminCode.append("    putfield ")
+                .append(className.replace('.', '/'))
+                .append("/")
+                .append(fieldName)
+                .append(" ")
+                .append(fieldTypeStr)
+                .append("\n");
+    }
+
+    private void generateGetFieldInstruction(GetFieldInstruction instruction) {
+        // Load the object reference
+        Element firstArg = instruction.getOperands().get(0);
+        generateElementCode(firstArg);
+
+        // Get the field name and type
+        String fieldName = ((Operand)instruction.getOperands().get(1)).getName();
+        Type fieldType = instruction.getFieldType(); // Use getFieldType() instead of getReturnType()
+        String fieldTypeStr = jasminUtils.getJasminType(fieldType);
+
+        // Get class name
+        String className = firstArg.getType() instanceof ClassType ?
+                ((ClassType) firstArg.getType()).getName() :
+                classUnit.getClassName();
+
+        // Generate getfield instruction
+        jasminCode.append("    getfield ")
+                .append(className.replace('.', '/'))
+                .append("/")
+                .append(fieldName)
+                .append(" ")
+                .append(fieldTypeStr)
+                .append("\n");
+    }
 
 
     private void generateReturnInstruction(ReturnInstruction ret) {
@@ -481,14 +529,22 @@ public class JasminGenerator {
     }
 
     private void calculateStackSize(Method method) {
-        // Reset stack counters
-        maxStackSize = 0;
-        currentStackSize = 0;
 
-        // We'll analyze each instruction to determine the stack effect
+
+        // Count operations that affect stack
+        int stackNeeded = 0;
         for (Instruction instruction : method.getInstructions()) {
-            analyzeInstructionStack(instruction);
+            if (instruction instanceof CallInstruction call) {
+                // Method calls typically need operands + 1 for possible return value
+                stackNeeded = Math.max(stackNeeded, call.getOperands().size() + 1);
+            } else if (instruction instanceof BinaryOpInstruction) {
+                // Binary operations need 2 operands and produce 1 result
+                stackNeeded = Math.max(stackNeeded, 2);
+            }
         }
+
+        // Add safety margin
+        maxStackSize = Math.max(2, stackNeeded);
     }
 
     private void analyzeInstructionStack(Instruction instruction) {
@@ -518,50 +574,101 @@ public class JasminGenerator {
     }
 
     private void analyzeReturnStack(ReturnInstruction instruction) {
-
+        // Return instructions typically need 1 stack slot for the return value
+        // (except for void returns)
+        if (instruction.hasReturnValue()) {
+            updateStackLimit(1);
+        }
     }
 
     private void analyzeCallStack(CallInstruction instruction) {
-        
+        // Count operands (including target object for instance methods)
+        int operandCount = instruction.getOperands().size();
+
+        // If it's not a static call, we need an extra slot for 'this'
+        Element firstOperand = instruction.getOperands().get(0);
+        boolean isStatic = firstOperand instanceof Operand
+                && firstOperand.getType() instanceof ClassType
+                && !((Operand) instruction.getMethodName()).getName().equals("<init>");
+
+        if (!isStatic) {
+            operandCount++;
+        }
+
+        updateStackLimit(operandCount);
+
+        // If the result is used, we need an extra slot
+        if (!(instruction.getReturnType() instanceof BuiltinType) ||
+                ((BuiltinType) instruction.getReturnType()).getKind() != BuiltinKind.VOID) {
+            updateStackLimit(1);
+        }
     }
 
     private void analyzeBinaryOperStack(BinaryOpInstruction instruction) {
+        // Binary operations need 2 operands and produce 1 result
+        updateStackLimit(2);
     }
 
     private void analyzeUnaryOperStack(UnaryOpInstruction instruction) {
-        
+        // Unary operations need 1 operand and produce 1 result
+        updateStackLimit(1);
     }
 
     private void analyzeGetFieldStack(GetFieldInstruction instruction) {
-        
+        // Need 1 slot for the object reference, produces 1 result
+        updateStackLimit(2);
     }
 
     private void analyzePutFieldStack(PutFieldInstruction instruction) {
-        
+        // Need 1 slot for the object reference and 1 for the value
+        updateStackLimit(2);
     }
 
     private void analyzeAssignStack(AssignInstruction instruction) {
-        
-    }
+        // Analyze the right-hand side of the assignment
+        Instruction rhs = instruction.getRhs();
 
-    private void analyzeBranchStack(CondBranchInstruction instruction) {
-        
-    }
-
-
-
-
-
-
-
-
-    private void updateStackSize(int delta) {
-        currentStackSize += delta;
-        if (currentStackSize < 0) {
-            currentStackSize = 0; // Stack can't be negative
+        if (rhs instanceof SingleOpInstruction) {
+            // Loading literals or variables needs 1 stack slot
+            updateStackLimit(1);
+        } else if (rhs instanceof BinaryOpInstruction) {
+            // Binary operations need 2 operands
+            analyzeBinaryOperStack((BinaryOpInstruction) rhs);
+        } else if (rhs instanceof UnaryOpInstruction) {
+            // Unary operations need 1 operand
+            analyzeUnaryOperStack((UnaryOpInstruction) rhs);
+        } else if (rhs instanceof CallInstruction) {
+            analyzeCallStack((CallInstruction) rhs);
         }
-        maxStackSize = Math.max(maxStackSize, currentStackSize);
     }
+    private void analyzeBranchStack(CondBranchInstruction instruction) {
+        // For conditional branches, analyze the condition
+        Instruction condition = instruction.getCondition();
+
+        if (condition instanceof SingleOpInstruction) {
+            // Simple condition needs 1 stack slot
+            updateStackLimit(1);
+        } else if (condition instanceof BinaryOpInstruction) {
+            // Binary condition needs 2 stack slots
+            updateStackLimit(2);
+        } else {
+            // Other operations - safe default
+            updateStackLimit(2);
+        }
+    }
+
+
+
+    private void updateStackLimit(int requiredSlots) {
+        if (requiredSlots > maxStackSize) {
+            maxStackSize = requiredSlots;
+        }
+    }
+
+
+
+
+
 
     // Helper methods for label generation
     private String getNextLabel() {
