@@ -80,12 +80,11 @@ public class JasminGenerator {
     }
 
     private void buildConstructor() {
-        // Only add if not already present
         boolean hasConstructor = false;
         for (Method method : classUnit.getMethods()) {
             if (method.isConstructMethod()) {
                 hasConstructor = true;
-                break;
+                buildMethod(method); // Generate user-defined constructor
             }
         }
         if (!hasConstructor) {
@@ -102,21 +101,32 @@ public class JasminGenerator {
 
     private void buildMethods() {
         for (Method method : classUnit.getMethods()) {
-            buildMethod(method);
+            if (!method.isConstructMethod()) {
+                buildMethod(method);
+            }
         }
     }
+
+    private String getMethodAccessModifier(Method method) {
+        var modifier = method.getMethodAccessModifier();
+        if (modifier == AccessModifier.DEFAULT) {
+            return "public ";
+        }
+        return jasminUtils.getModifier(modifier);
+    }
+
+
+
 
     private void buildMethod(Method method) {
         currentMethod = method;
         maxStackSize = 0;
         currentStackSize = 0;
 
-        // Method signature
-        String accessModifier = jasminUtils.getModifier(method.getMethodAccessModifier());
+        String accessModifier = getMethodAccessModifier(method);
         String staticModifier = method.isStaticMethod() ? "static " : "";
         String methodName = method.isConstructMethod() ? "<init>" : method.getMethodName();
         String returnType = jasminUtils.getJasminType(method.getReturnType());
-
 
         jasminCode.append(".method ")
                 .append(accessModifier)
@@ -124,28 +134,33 @@ public class JasminGenerator {
                 .append(methodName)
                 .append("(");
 
-        // Parameters
-        for (Element param : method.getParams()) {
-            jasminCode.append(jasminUtils.getJasminType(param.getType()));
+        // Only append parameters if not a default constructor
+        if (!(method.isConstructMethod() && method.getParams().isEmpty())) {
+            for (Element param : method.getParams()) {
+                jasminCode.append(jasminUtils.getJasminType(param.getType()));
+            }
         }
 
         jasminCode.append(")").append(returnType).append("\n");
 
-        // Calculate limits before processing instructions
         int limitLocals = calculateLimitLocals(method);
-
-        // Process instructions to calculate stack size
         calculateStackSize(method);
 
-        // Add the limits
         jasminCode.append("    .limit stack ").append(Math.max(2, maxStackSize)).append("\n");
         jasminCode.append("    .limit locals ").append(limitLocals).append("\n");
 
-        // Method instructions
-        generateInstructions(method);
+        // Special handling for default constructor
+        if (method.isConstructMethod() && method.getParams().isEmpty()) {
+            jasminCode.append("    aload_0\n");
+            jasminCode.append("    invokespecial java/lang/Object/<init>()V\n");
+            jasminCode.append("    return\n");
+        } else {
+            generateInstructions(method);
+        }
 
         jasminCode.append(".end method\n\n");
     }
+
 
     private void addImportFullNames(ClassUnit classUnit) {
         for (var imp : classUnit.getImports()) {
