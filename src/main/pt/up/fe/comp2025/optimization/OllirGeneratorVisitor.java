@@ -26,7 +26,6 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
     private final String L_BRACKET = " {\n";
     private final String R_BRACKET = "}\n";
 
-
     private final SymbolTable table;
 
     private final TypeUtils types;
@@ -43,10 +42,9 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         exprVisitor = new OllirExprGeneratorVisitor(table);
     }
 
-
     @Override
     protected void buildVisitor() {
-        addVisit(METHOD_DECL,this::visitMethod);
+        addVisit(METHOD_DECL, this::visitMethod);
         addVisit(PROGRAM, this::visitProgram);
         addVisit(CLASS_DECL, this::visitClass);
         addVisit(METHOD_DECL, this::visitMethodDecl);
@@ -127,9 +125,9 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         OllirExprResult condition = exprVisitor.visit(condExpr);
 
         // Generate unique labels for then/else/end blocks
-        String thenLabel = ollirTypes.nextTemp("then");
-        String elseLabel = ollirTypes.nextTemp("else");
-        String endLabel = ollirTypes.nextTemp("endif");
+        String thenLabel = OptUtils.getLabel("then");
+        String elseLabel = OptUtils.getLabel("else");
+        String endLabel = OptUtils.getLabel("endif");
 
         // Add condition computation
         code.append(condition.getComputation());
@@ -153,6 +151,7 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         if (node.getNumChildren() > 2) {
             code.append(elseLabel).append(":").append(NL);
             code.append(visit(node.getChild(2)));
+            code.append("goto ").append(endLabel).append(END_STMT);
         }
 
         // Add end label
@@ -165,11 +164,16 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         StringBuilder code = new StringBuilder();
 
         // Generate unique labels for condition/loop/end
-        String condLabel = ollirTypes.nextTemp("whileCond");
-        String loopLabel = ollirTypes.nextTemp("whileBody");
-        String endLabel = ollirTypes.nextTemp("whileEnd");
+        String condLabel = OptUtils.getLabel("whileCond");
+        String loopLabel = OptUtils.getLabel("whileBody");
+        String endLabel = OptUtils.getLabel("whileEnd");
 
         // Jump to condition evaluation
+        code.append("goto ").append(condLabel).append(END_STMT);
+
+        // Add loop body label
+        code.append(loopLabel).append(":").append(NL);
+        code.append(visit(node.getChild(1)));
         code.append("goto ").append(condLabel).append(END_STMT);
 
         // Add condition label
@@ -184,13 +188,6 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         code.append("if (").append(condition.getCode()).append(") goto ").append(loopLabel).append(END_STMT);
         code.append("goto ").append(endLabel).append(END_STMT);
 
-        // Add loop body
-        code.append(loopLabel).append(":").append(NL);
-        code.append(visit(node.getChild(1)));
-
-        // Jump back to condition
-        code.append("goto ").append(condLabel).append(END_STMT);
-
         // Add end label
         code.append(endLabel).append(":").append(NL);
 
@@ -201,6 +198,7 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         List<String> name = node.getObjectAsList("name", String.class);
         return "import " + String.join(".", name) + END_STMT;
     }
+
     private String visitParameters(JmmNode node, Void unused) {
         StringBuilder params = new StringBuilder();
 
@@ -214,6 +212,7 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
         return params.toString();
     }
+
     private String defaultVisit(JmmNode node, Void unused) {
         StringBuilder result = new StringBuilder();
 
@@ -224,7 +223,6 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
         return result.toString();
     }
-
 
     private String visitMethodDecl(JmmNode node, Void unused) {
         // Reset state variables for each method
@@ -283,9 +281,8 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
     // Update visitReturn to set hasReturnStatement
     private String visitReturn(JmmNode node, Void unused) {
         JmmNode methodNode = node.getAncestor(METHOD_DECL).orElse(null);
-        Type retType = methodNode != null ?
-                TypeUtils.convertType(methodNode.getChild(0)) :
-                TypeUtils.newType(TypeName.INT, false);
+        Type retType = methodNode != null ? TypeUtils.convertType(methodNode.getChild(0))
+                : TypeUtils.newType(TypeName.INT, false);
 
         StringBuilder code = new StringBuilder();
         var expr = node.getNumChildren() > 0 ? exprVisitor.visit(node.getChild(0)) : OllirExprResult.EMPTY;
@@ -323,20 +320,20 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         // First check if we're in a method
         JmmNode methodNode = node.getAncestor(METHOD_DECL).orElse(null);
         boolean isLocalVar = false;
-        
+
         if (methodNode != null) {
             String methodName = methodNode.get("name");
             // Check if it's a local variable in this method
             isLocalVar = table.getLocalVariables(methodName).stream()
                     .anyMatch(var -> var.getName().equals(name));
-            
+
             // Also check if it's a parameter (which is also a local variable)
             if (!isLocalVar) {
                 isLocalVar = table.getParameters(methodName).stream()
-                    .anyMatch(param -> param.getName().equals(name));
+                        .anyMatch(param -> param.getName().equals(name));
             }
         }
-        
+
         // Check if this is a field assignment - only if it's not a local var
         boolean isField = !isLocalVar && table.getFields().stream()
                 .anyMatch(field -> field.getName().equals(name));
@@ -364,7 +361,6 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         JmmNode assignee = node.getChild(1);
         var expr = exprVisitor.visit(assignee);
 
-
         Type fieldType = null;
         for (var f : table.getFields()) {
             if (f.getName().equals(field.get("name"))) {
@@ -375,9 +371,9 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         assert fieldType != null;
         String type = ollirTypes.toOllirType(fieldType);
 
-        return expr.getComputation() + "putfield(this, " + field.get("name") + type + ", " + expr.getCode() + ")" + ".V" + END_STMT;
+        return expr.getComputation() + "putfield(this, " + field.get("name") + type + ", " + expr.getCode() + ")" + ".V"
+                + END_STMT;
     }
-
 
     private String visitParam(JmmNode node, Void unused) {
 
@@ -388,11 +384,6 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
         return code;
     }
-
-
-
-
-
 
     private String visitClass(JmmNode node, Void u) {
         StringBuilder code = new StringBuilder();
@@ -419,7 +410,6 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         return code.toString();
     }
 
-
     private String buildConstructor() {
         return """
                 .construct %s().V {
@@ -427,7 +417,6 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
                 }
                 """.formatted(table.getClassName());
     }
-
 
     private String visitProgram(JmmNode node, Void unused) {
 
@@ -439,8 +428,6 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
         return code.toString();
     }
-
-
 
     private String visitComplexArrayAccess(JmmNode node, Void unused) {
         // This handles more complex array access like a[i+j] or a[b[i]]
@@ -470,6 +457,7 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
         return new OllirExprResult(tempVar + resultType, code.toString()).getComputation();
     }
+
     private String visitArrayElement(JmmNode node, Void unused) {
         // Handle array element assignment (a[i] = x)
         JmmNode arrayAccessNode = node.getChild(0);
@@ -502,57 +490,107 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
 
     private String visitExprStmt(JmmNode node, Void unused) {
         JmmNode exprNode = node.getChild(0);
-        
-        // Special handling for function calls to ensure they're recognized as CallInstructions
-        if (exprNode.getKind().equals(FUNC_EXPR.getNodeName())) {
+
+        // Handle function calls (both static and instance methods)
+        if (exprNode.getKind().equals(FUNC_EXPR.getNodeName()) ||
+                exprNode.getKind().equals(METHOD_CALL_EXPR.getNodeName())) {
+
             String methodName = exprNode.get("methodname");
-            JmmNode objNode = exprNode.getChild(0);
-            
-            // Check if this is a call to a method of an imported class (static method)
-            if (objNode.getKind().equals(VAR_REF_EXPR.getNodeName())) {
-                String className = objNode.get("name");
-                boolean isImported = false;
-                
-                // Check if the class is imported
-                for (String imp : table.getImports()) {
-                    if (imp.equals(className) || imp.endsWith("." + className)) {
-                        isImported = true;
-                        break;
+            StringBuilder code = new StringBuilder();
+            boolean isStatic = false;
+            String className = null;
+            int startArgIndex = 0;
+
+            // Process the target object/class
+            if (exprNode.getKind().equals(FUNC_EXPR.getNodeName())) {
+                JmmNode objNode = exprNode.getChild(0);
+
+                // Check if this is a static method call to an imported class
+                if (objNode.getKind().equals(VAR_REF_EXPR.getNodeName())) {
+                    className = objNode.get("name");
+
+                    // Check if the class is imported
+                    for (String imp : table.getImports()) {
+                        if (imp.equals(className) || imp.endsWith("." + className)) {
+                            isStatic = true;
+                            startArgIndex = 1; // Skip the class name argument
+                            break;
+                        }
                     }
                 }
-                
-                if (isImported) {
-                    StringBuilder code = new StringBuilder();
-                    
-                    // Process arguments after the target
-                    List<String> argCodes = new ArrayList<>();
-                    for (int i = 1; i < exprNode.getNumChildren(); i++) {
-                        OllirExprResult arg = exprVisitor.visit(exprNode.getChild(i));
-                        code.append(arg.getComputation());
-                        argCodes.add(arg.getCode());
-                    }
-                    
-                    // Build the invokestatic call
-                    code.append("invokestatic(")
+            }
+
+            // Process arguments
+            List<String> argCodes = new ArrayList<>();
+            for (int i = startArgIndex; i < exprNode.getNumChildren(); i++) {
+                OllirExprResult arg = exprVisitor.visit(exprNode.getChild(i));
+                code.append(arg.getComputation());
+                argCodes.add(arg.getCode());
+            }
+
+            // Get the return type of the method
+            Type returnType = types.getExprType(exprNode);
+            String returnTypeStr = ollirTypes.toOllirType(returnType);
+
+            // Build the method call
+            if (isStatic) {
+                // Static method call to imported class
+                code.append("invokestatic(")
                         .append(className)
                         .append(", \"")
                         .append(methodName)
                         .append("\"");
-                    
-                    // Add arguments if any
-                    if (!argCodes.isEmpty()) {
-                        code.append(", ")
-                            .append(String.join(", ", argCodes));
-                    }
-                    
-                    code.append(").V")  // Add void return type
-                        .append(END_STMT);
-                    
+            } else {
+                // Instance method call
+                if (argCodes.isEmpty()) {
+                    // No arguments provided
                     return code.toString();
                 }
+
+                // Check if this is a call to a static method in the current class
+                final List<String> finalArgCodes = argCodes;
+                boolean isStaticLocalMethod = table.getMethods().stream()
+                        .anyMatch(m -> {
+                            // Get method signature
+                            String methodSig = m + "(" + finalArgCodes.size() + ")";
+                            // Check if method exists and is static
+                            return m.equals(methodName) &&
+                                    table.getParameters(methodSig) != null &&
+                                    table.getParameters(methodSig).size() == finalArgCodes.size();
+                        });
+
+                if (isStaticLocalMethod) {
+                    // Static method call in current class
+                    code.append("invokestatic(")
+                            .append(table.getClassName())
+                            .append(", \"")
+                            .append(methodName)
+                            .append("\"");
+                } else {
+                    // Instance method call (either local or inherited)
+                    code.append("invokevirtual(")
+                            .append(argCodes.get(0)) // First argument is the object
+                            .append(", \"")
+                            .append(methodName)
+                            .append("\"");
+
+                    // Remove the object from arguments list
+                    argCodes = argCodes.subList(1, argCodes.size());
+                }
             }
+
+            // Add remaining arguments if any
+            if (!argCodes.isEmpty()) {
+                code.append(", ")
+                        .append(String.join(", ", argCodes));
+            }
+
+            code.append(")").append(returnTypeStr)
+                    .append(END_STMT);
+
+            return code.toString();
         }
-        
+
         // Default behavior for other expressions
         return exprVisitor.visit(exprNode).getComputation();
     }

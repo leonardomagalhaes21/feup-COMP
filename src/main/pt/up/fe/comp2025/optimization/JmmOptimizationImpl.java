@@ -66,8 +66,7 @@ public class JmmOptimizationImpl implements JmmOptimization {
                         Stage.OPTIMIZATION,
                         -1,
                         -1,
-                        "Need at least " + (mx + 1) + " registers.\n"
-                ));
+                        "Need at least " + (mx + 1) + " registers.\n"));
             }
         }
         return ollirResult;
@@ -112,7 +111,8 @@ public class JmmOptimizationImpl implements JmmOptimization {
                 TreeSet<String> newOut = new TreeSet<>();
                 for (var suc : inst.getSuccessors()) {
                     int id = suc.getId() - 1;
-                    if (id < 0 || id >= sz) continue;
+                    if (id < 0 || id >= sz)
+                        continue;
                     newOut.addAll(IN[id]);
                 }
 
@@ -146,7 +146,8 @@ public class JmmOptimizationImpl implements JmmOptimization {
             graph.put(var, new TreeSet<>());
         }
 
-        // Fill the interference graph - variables live at the same time interfere with each other
+        // Fill the interference graph - variables live at the same time interfere with
+        // each other
         for (int i = 0; i < sz; i++) {
             Set<String> liveOut = new TreeSet<>(OUT[i]);
             for (String defVar : DEF[i]) {
@@ -165,20 +166,22 @@ public class JmmOptimizationImpl implements JmmOptimization {
         // Start register numbering after parameters
         int nextReg = 1;
         if (m.isStaticMethod()) {
-            nextReg = 0;  // Static methods don't have 'this'
+            nextReg = 0; // Static methods don't have 'this'
         }
         nextReg += m.getParams().size();
 
         // Sort variables by degree (number of interferences)
         List<String> sortedVars = new ArrayList<>(variables);
         sortedVars.sort((a, b) -> {
-            if (!graph.containsKey(a) || !graph.containsKey(b)) return 0;
+            if (!graph.containsKey(a) || !graph.containsKey(b))
+                return 0;
             return Integer.compare(graph.get(b).size(), graph.get(a).size());
         });
 
         // Assign registers
         for (String var : sortedVars) {
-            if (!graph.containsKey(var)) continue;
+            if (!graph.containsKey(var))
+                continue;
 
             // Find the smallest available register
             Set<Integer> usedColors = new TreeSet<>();
@@ -206,9 +209,11 @@ public class JmmOptimizationImpl implements JmmOptimization {
     }
 
     private boolean equalSets(Set<String> a, Set<String> b) {
-        if (a.size() != b.size()) return false;
+        if (a.size() != b.size())
+            return false;
         for (var s : a) {
-            if (!b.contains(s)) return false;
+            if (!b.contains(s))
+                return false;
         }
         return true;
     }
@@ -257,7 +262,8 @@ public class JmmOptimizationImpl implements JmmOptimization {
     }
 
     private void optimizeConstantPropAndFold(JmmNode node, SymbolTable table) {
-        while (propagate(node, table) || fold(node, table)) ;
+        while (propagate(node, table) || fold(node, table))
+            ;
     }
 
     private boolean propagate(JmmNode node, SymbolTable table) {
@@ -282,7 +288,8 @@ public class JmmOptimizationImpl implements JmmOptimization {
         for (var stmt : node.getChildren()) {
             try {
                 Kind kind = Kind.fromString(stmt.getKind());
-                if (!Kind.STATEMENTS.contains(kind)) continue;
+                if (!Kind.STATEMENTS.contains(kind))
+                    continue;
 
                 if (kind == ASSIGN_STMT || kind == ARRAY_ASSIGN_STMT) {
                     var var = stmt.getChild(0).get("name");
@@ -473,14 +480,15 @@ public class JmmOptimizationImpl implements JmmOptimization {
         return true;
     }
 
-    private boolean addAndReplace(String var, JmmNode expr, HashMap<String, Integer> integers, HashMap<String, Boolean> booleans) {
+    private boolean addAndReplace(String var, JmmNode expr, HashMap<String, Integer> integers,
+            HashMap<String, Boolean> booleans) {
         if (expr.getKind().equals(INTEGER_LITERAL.getNodeName())) {
             integers.put(var, Integer.parseInt(expr.get("value")));
-            return false;   // did not replace constant
+            return false; // did not replace constant
         }
         if (expr.getKind().equals(BOOLEAN_LITERAL.getNodeName())) {
             booleans.put(var, Boolean.parseBoolean(expr.get("value")));
-            return false;   // did not replace constant
+            return false; // did not replace constant
         }
         if (expr.getKind().equals(PAREN_EXPR.getNodeName())) {
             return addAndReplace(var, expr.getChild(0), integers, booleans);
@@ -494,7 +502,8 @@ public class JmmOptimizationImpl implements JmmOptimization {
         }
         if (expr.getKind().equals(VAR_REF_EXPR.getNodeName())) {
             // if something like i = 1; i = i + 1; cannot propagate i;
-            if (var.equals(expr.get("name"))) return false;
+            if (var.equals(expr.get("name")))
+                return false;
             return replaceVar(expr, integers, booleans);
         }
 
@@ -524,8 +533,10 @@ public class JmmOptimizationImpl implements JmmOptimization {
         JmmNode expr = node.getChild(node.getNumChildren() - 1);
 
         if (expr.getKind().equals(INTEGER_LITERAL.getNodeName()) ||
-                expr.getKind().equals(BOOLEAN_LITERAL.getNodeName())) return false;
-        if (!canEvaluate(expr)) return false;
+                expr.getKind().equals(BOOLEAN_LITERAL.getNodeName()))
+            return false;
+        if (!canEvaluate(expr))
+            return false;
 
         int value = evaluateExpr(expr);
         String result = String.valueOf(value);
@@ -629,16 +640,19 @@ public class JmmOptimizationImpl implements JmmOptimization {
 
     private void checkVarArgsAndReplace(JmmNode node, SymbolTable table) {
         var params = table.getParameters(node.get("methodname"));
-        if (params.isEmpty()) return;
+        if (params.isEmpty())
+            return;
 
         Symbol lastParam = params.get(params.size() - 1);
         JmmNode lastChild = node.getChild(node.getNumChildren() - 1);
 
         // last argument is not array, no change needed
-        if (!lastParam.getType().isArray()) return;
+        if (!lastParam.getType().isArray())
+            return;
 
         // last argument is array but last child is also array, no need to change
-        if (lastParam.getType().isArray() && lastChild.getKind().equals(ARRAY_EXPR.getNodeName())) return;
+        if (lastParam.getType().isArray() && lastChild.getKind().equals(ARRAY_EXPR.getNodeName()))
+            return;
 
         // from now on we know lastParam is varargs and we must alter tree
         int start = params.size();
