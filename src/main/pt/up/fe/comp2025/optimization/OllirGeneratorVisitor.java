@@ -313,6 +313,24 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
         Type type = types.getExprType(left);
         String ollirType = ollirTypes.toOllirType(type);
 
+        if (right.getKind().equals(BINARY_EXPR.getNodeName()) &&
+                right.get("op").equals("+") &&
+                right.getChild(0).getKind().equals(VAR_REF_EXPR.getNodeName()) &&
+                right.getChild(0).get("name").equals(name) &&
+                right.getChild(1).getKind().equals(INTEGER_LITERAL.getNodeName())) {
+
+            code.append(name).append(ollirType)
+                    .append(" :=").append(ollirType)
+                    .append(" ")
+                    .append(name).append(ollirType)
+                    .append(" +").append(ollirType)
+                    .append(" ")
+                    .append(right.getChild(1).get("value")).append(ollirType)
+                    .append(END_STMT);
+
+            return code.toString();
+        }
+
         var rhs = exprVisitor.visit(right);
         code.append(rhs.getComputation());
 
