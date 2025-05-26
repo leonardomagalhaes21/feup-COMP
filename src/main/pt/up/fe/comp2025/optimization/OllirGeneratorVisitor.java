@@ -317,7 +317,9 @@ public class OllirGeneratorVisitor extends AJmmVisitor<Void, String> {
                 && (right.get("op").equals("+")
                 || right.get("op").equals("-")
                 || right.get("op").equals("*")
-                || right.get("op").equals("/"))
+                || right.get("op").equals("/")
+                || right.get("op").equals("&&")
+                || right.get("op").equals("||"))
                 && right.getChild(0).getKind().equals(VAR_REF_EXPR.getNodeName())
                 && right.getChild(0).get("name").equals(name)
                 && right.getChild(1).getKind().equals(INTEGER_LITERAL.getNodeName())) {
