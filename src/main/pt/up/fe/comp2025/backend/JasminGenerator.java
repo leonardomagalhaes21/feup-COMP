@@ -5,7 +5,6 @@ import org.specs.comp.ollir.inst.*;
 import org.specs.comp.ollir.tree.TreeNode;
 import org.specs.comp.ollir.type.*;
 import org.specs.comp.ollir.Method;
-import pt.up.fe.comp.jmm.jasmin.JasminResult;
 import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp2025.optimization.OptUtils;
@@ -110,7 +109,7 @@ public class JasminGenerator {
             }
         }
 
-        System.out.println(formatted.toString());
+        System.out.println(formatted);
         return formatted.toString();
     }
 
@@ -180,7 +179,7 @@ public class JasminGenerator {
 
         code.append(".limit stack ").append(maxStack).append(NL);
         code.append(".limit locals ").append(maxLocals).append(NL);
-        code.append(instructions.toString());
+        code.append(instructions);
         code.append(".end method");
 
         // unset method
@@ -458,6 +457,7 @@ public class JasminGenerator {
                     }
 
                     if (varOp != null && litOp != null) {
+
                         try {
                             int incValue = Integer.parseInt(litOp.getLiteral());
                             if (incValue != 0 && incValue >= -128 && incValue <= 127) {
@@ -511,14 +511,12 @@ public class JasminGenerator {
             code.append(loadInstruction).append(virtualRegister).append(NL);
             updateStack(1);
 
-            code.append(generators.apply(arrayLhs.getIndexOperands().get(0)));
+            code.append(generators.apply(arrayLhs.getIndexOperands().getFirst()));
 
             code.append(rhsCodeString);
-
-            updateStack(-3);
-
-            Type arrayElementType = ((ArrayType) arrayLhs.getType()).getElementType();
-            if (BuiltinType.is(arrayElementType, BuiltinKind.INT32) || BuiltinType.is(arrayElementType, BuiltinKind.BOOLEAN)) {
+            if(rhs instanceof AssignInstruction assignRhs && assignRhs.getDest() instanceof Operand) {
+                // Se o lado direito é uma atribuição simples, só empilha o valor
+                code.append(generators.apply(assignRhs.getRhs()));
                 code.append("iastore").append(NL);
             } else {
                 code.append("aastore").append(NL);
@@ -571,7 +569,7 @@ public class JasminGenerator {
         String loadInstruction = virtualRegister <= 3 ? "aload_" : "aload ";
 
         codeBuilder.append(loadInstruction).append(virtualRegister).append(NL);
-        codeBuilder.append(getOperand(arrayOperand.getIndexOperands().get(0)));
+        codeBuilder.append(getOperand(arrayOperand.getIndexOperands().getFirst()));
         codeBuilder.append("iaload").append(NL);
 
         updateStack(-1);
@@ -723,7 +721,6 @@ public class JasminGenerator {
     private String generateOpCondInstruction(OpCondInstruction instruction) {
         StringBuilder code = new StringBuilder();
         Instruction condition = instruction.getCondition();
-        code.append(";debug: condition: ").append(condition).append(NL);
         if (condition instanceof SingleOpInstruction) {
             code.append(generators.apply(((SingleOpInstruction) condition).getSingleOperand()));
         } else {
