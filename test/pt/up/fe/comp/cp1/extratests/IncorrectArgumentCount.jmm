@@ -1,6 +1,27 @@
 class A {
-    void f1(int a, int b) {}
-    void f2() {
-        f1(1);
+    public static void main(String[] a) {
+        int k;
+        boolean i;
+        int[] c;
+        A mc;
+
+        mc = new A();
+        i = false;
+        c = new int[10];
+        k = 10;
+
+        k = mc.foo(i, c, k);
+    }
+
+    public int foo(boolean a, int b, int[] c){
+        int j;
+
+        if (a) {
+            j = c[2];
+        } else {
+            j = b;
+        }
+
+        return j;
     }
 }

@@ -15,8 +15,12 @@ import java.util.List;
 import java.util.Objects;
 
 public class ExprValidator extends AnalysisVisitor {
+
+    private JmmNode currentClass;
+
     @Override
     public void buildVisitor() {
+        addVisit(Kind.CLASS_DECL, this::visitClassDecl);
         addVisit(Kind.FUNC_EXPR, this::visitFuncExpr);
         addVisit(Kind.MEMBER_EXPR, this::visitMemberExpr);
         addVisit(Kind.ARRAY_ACCESS_EXPR, this::visitArrayAccessExpr);
@@ -28,6 +32,12 @@ public class ExprValidator extends AnalysisVisitor {
         addVisit(Kind.METHOD_CALL_EXPR, this::visitMethodCallExpr);
         addVisit(Kind.THIS_EXPR, this::visitThisExpr);
         addVisit(Kind.EXPR, this::visitExpr);
+    }
+
+    private Void visitClassDecl(JmmNode classDecl, SymbolTable table) {
+        currentClass = classDecl;
+
+        return null;
     }
 
     private Void visitArrayLengthExpr(JmmNode arrayLengthExpr, SymbolTable table) {
@@ -106,94 +116,77 @@ public class ExprValidator extends AnalysisVisitor {
 
     private Void visitFuncExpr(JmmNode funcExpr, SymbolTable table) {
         var methodName = funcExpr.get("methodname");
+        var callArgs = funcExpr.getChildren().subList(1, funcExpr.getNumChildren());
 
         if (methodName.equals("length")) {
             return visitArrayLengthExpr(funcExpr, table);
         }
 
-        // Check if the method exists in the current class
-        if (table.getMethods().contains(methodName)) {
-            // Method exists in this class, verify argument types if any
-            if (funcExpr.getNumChildren() > 1) { // First child is caller, rest are arguments
-                var parameters = table.getParameters(methodName);
-                var arguments = funcExpr.getChildren().subList(1, funcExpr.getNumChildren());
-                boolean isVarargs = !parameters.isEmpty() &&
-                        parameters.getLast().getType().isArray();
+        if (!table.getMethods().contains(methodName)) {
+            return null;
+        }
 
-                if (!isVarargs && arguments.size() != parameters.size()) {
-                    var message = "Method '" + methodName + "' expects " + parameters.size() +
-                            " arguments, but " + arguments.size() + " were provided.";
-                    addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
-                    return null;
-                }
+        List<JmmNode> params = TypeUtils.getMethodParams(methodName, currentClass);
+        List<Symbol> parameters = table.getParameters(methodName);
 
-                TypeUtils typeUtils = new TypeUtils(table);
-                for (int i = 0; i < parameters.size(); i++) {
-                    var paramType = parameters.get(i).getType();
-                    var argType = typeUtils.getExprType(arguments.get(i));
+        boolean isVarargs = false;
+        Type varargsType = null;
+        int fixedParamCount = parameters.size();
 
-                    if (!isVarargs && !typeUtils.isAssignable(paramType, argType)) {
-                        var message = "Incompatible argument type for parameter '" + parameters.get(i).getName() +
-                                "'. Expected '" + paramType.getName() + (paramType.isArray() ? "[]" : "") +
-                                "', but got '" + argType.getName() + (argType.isArray() ? "[]" : "") + "'.";
-                        addReport(Report.newError(Stage.SEMANTIC, arguments.get(i).getLine(),
-                                arguments.get(i).getColumn(), message, null));
-                    }
+        if (!params.isEmpty()) {
+            JmmNode lastParam = params.get(params.size() - 1);
+            if (!lastParam.getChildren().isEmpty() && lastParam.getChild(0).hasAttribute("isVarargs")) {
+                isVarargs = lastParam.getChild(0).get("isVarargs").equals("true");
+                varargsType = parameters.get(parameters.size() - 1).getType();
+                if (isVarargs) {
+                    fixedParamCount = parameters.size() - 1;
                 }
             }
-            return null;
         }
 
-        // If there's no caller (like a.foo()), it's an invalid call
-        if (funcExpr.getNumChildren() == 0) {
-            var message = "Method '" + methodName + "' is not defined.";
-            addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
-            return null;
+        if (isVarargs) {
+            if (callArgs.size() < fixedParamCount) {
+                var message = "Method '" + methodName + "' expects at least " + fixedParamCount + " arguments, but " + callArgs.size() + " were provided.";
+                addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
+                return null;
+            }
+        } else {
+            if (callArgs.size() != parameters.size()) {
+                var message = "Method '" + methodName + "' expects " + parameters.size() +
+                        " arguments, but " + callArgs.size() + " were provided.";
+                addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
+                return null;
+            }
         }
 
-        // There's a caller, check if method might exist in caller's type
         TypeUtils typeUtils = new TypeUtils(table);
-        var caller = funcExpr.getChildren().getFirst();
-        var callerType = typeUtils.getExprType(caller);
-
-        // If caller is "this", check class methods
-        if (Kind.THIS_EXPR.check(caller) && table.getMethods().contains(methodName)) {
-            return null;
+        // Check fixed parameters
+        for (int i = 0; i < fixedParamCount; i++) {
+            var paramType = parameters.get(i).getType();
+            var argType = typeUtils.getExprType(callArgs.get(i));
+            if (!typeUtils.isAssignable(paramType, argType)) {
+                var message = "Incompatible argument type for parameter '" + parameters.get(i).getName() +
+                        "'. Expected '" + paramType.getName() + (paramType.isArray() ? "[]" : "") +
+                        "', but got '" + argType.getName() + (argType.isArray() ? "[]" : "") + "'.";
+                addReport(Report.newError(Stage.SEMANTIC, callArgs.get(i).getLine(),
+                        callArgs.get(i).getColumn(), message, null));
+            }
         }
-
-        // Check if caller is directly a reference to an imported class (for static calls)
-        if (Kind.VAR_REF_EXPR.check(caller)) {
-            String callerName = caller.get("name");
-            for (String importName : table.getImports()) {
-                // Check if it's a direct import match
-                if (importName.equals(callerName) || importName.endsWith("." + callerName)) {
-                    return null; // Assume method exists in imported class
+        // Check varargs arguments
+        if (isVarargs) {
+            // Get the element type of the varargs array
+            Type elementType = new Type(varargsType.getName(), false);
+            for (int i = fixedParamCount; i < callArgs.size(); i++) {
+                var argType = typeUtils.getExprType(callArgs.get(i));
+                if (!typeUtils.isAssignable(elementType, argType)) {
+                    var message = "Incompatible argument type for varargs parameter '" + parameters.get(parameters.size() - 1).getName() +
+                            "'. Expected '" + elementType.getName() +
+                            "', but got '" + argType.getName() + (argType.isArray() ? "[]" : "") + "'.";
+                    addReport(Report.newError(Stage.SEMANTIC, callArgs.get(i).getLine(),
+                            callArgs.get(i).getColumn(), message, null));
                 }
             }
         }
-
-        // Check if caller type is the current class
-        if (callerType.getName().equals(table.getClassName()) && table.getMethods().contains(methodName)) {
-            return null;
-        }
-
-        // Check if method might be from superclass
-        var superClass = table.getSuper();
-        if (superClass != null &&
-                (callerType.getName().equals(superClass) || callerType.getName().equals(table.getClassName()))) {
-            return null; // Assume method exists in superclass
-        }
-
-        // Check if method might be from imported class
-        var imports = table.getImports();
-        for (String importName : imports) {
-            if (importName.endsWith("." + callerType.getName()) || importName.equals(callerType.getName())) {
-                return null; // Assume method exists in imported class
-            }
-        }
-
-        var message = "Method '" + methodName + "' is not defined in type '" + callerType.getName() + "'.";
-        addReport(Report.newError(Stage.SEMANTIC, funcExpr.getLine(), funcExpr.getColumn(), message, null));
         return null;
     }
 
@@ -391,6 +384,7 @@ public class ExprValidator extends AnalysisVisitor {
                                 "Incorrect argument type for parameter " + (i + 1) + " in method '" + methodName + "'.",
                                 null));
                     }
+
                 }
             }
         }

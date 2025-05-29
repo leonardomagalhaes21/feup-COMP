@@ -8,8 +8,8 @@ class ComplexArrayAccess {
 	public static void main(String[] args) {
 	    int[] a;
         int i;
-        ComplexArrayAccess d;
-        d = new ComplexArrayAccess();
+        //ComplexArrayAccess d;
+        //d = new ComplexArrayAccess();
         a = new int[5];
         a[0] = 1;
 		a[1] = 2;

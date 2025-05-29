@@ -5,6 +5,8 @@ import pt.up.fe.comp.jmm.analysis.table.Type;
 import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.comp2025.symboltable.JmmSymbolTable;
 
+import java.util.List;
+
 /**
  * Utility methods regarding types.
  */
@@ -223,4 +225,15 @@ public class TypeUtils {
         return type.getName().equals("boolean") && !type.isArray();
     }
 
+
+    public static List<JmmNode> getMethodParams(String methodName, JmmNode currentClass) {
+        var methods = currentClass.getChildren(Kind.METHOD_DECL);
+        for (var method : methods) {
+            if (method.get("name").equals(methodName)) {
+                // The parameters node is usually at index 1
+                return method.getChild(1).getChildren(Kind.PARAM);
+            }
+        }
+        return List.of();
+    }
 }
