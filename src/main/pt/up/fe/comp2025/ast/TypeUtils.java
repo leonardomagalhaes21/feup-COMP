@@ -54,7 +54,12 @@ public class TypeUtils {
             case FUNC_EXPR -> getFuncExprType(expr);
             case NEW_EXPR -> getNewExprType(expr);
             case ARRAY_EXPR, NEW_ARRAY_EXPR -> newType(TypeName.INT, true);
-            case INTEGER_LITERAL, ARRAY_ACCESS_EXPR -> newType(TypeName.INT, false);
+            case INTEGER_LITERAL -> newType(TypeName.INT, false);
+            case ARRAY_ACCESS_EXPR -> {
+                var arrayExpr = expr.getChildren().getFirst();
+                var arrayType = getExprType(arrayExpr);
+                yield new Type(arrayType.getName(), false);
+            }
             case BOOLEAN_LITERAL -> newType(TypeName.BOOLEAN, false);
             case THIS_EXPR -> new Type(table.getClassName(), false);
             case MEMBER_EXPR -> getMemberExprType(expr);

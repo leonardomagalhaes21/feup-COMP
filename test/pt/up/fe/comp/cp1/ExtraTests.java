@@ -294,4 +294,23 @@ public class ExtraTests {
         var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/VarargsAsReturnType.jmm"));
         TestUtils.mustFail(result);
     }
+
+
+    @Test
+    public void varargsIntArrayCall() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/VarargsIntArrayCall.jmm"));
+        TestUtils.noErrors(result);
+    }
+
+    @Test
+    public void varargsBooleanAndIntArrayCall() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/VarargsBooleanAndIntArrayCall.jmm"));
+        TestUtils.noErrors(result);
+    }
+
+    @Test
+    public void stringArgumentToMethod() {
+        var result = TestUtils.analyse(SpecsIo.getResource("pt/up/fe/comp/cp1/extratests/StringArgumentToMethod.jmm"));
+        TestUtils.noErrors(result);
+    }
 }

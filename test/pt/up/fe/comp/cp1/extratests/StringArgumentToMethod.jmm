@@ -1,0 +1,10 @@
+class A {
+    public static void main(String[] args) {
+        A a;
+        a = new A();
+        a.f1(args[0]);
+    }
+    String f1(String a) {
+        return a;
+    }
+}

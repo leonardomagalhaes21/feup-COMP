@@ -174,11 +174,11 @@ public class ExprValidator extends AnalysisVisitor {
         }
         // Check varargs arguments
         if (isVarargs) {
-            // Get the element type of the varargs array
             Type elementType = new Type(varargsType.getName(), false);
             for (int i = fixedParamCount; i < callArgs.size(); i++) {
                 var argType = typeUtils.getExprType(callArgs.get(i));
-                if (!typeUtils.isAssignable(elementType, argType)) {
+                if (!(typeUtils.isAssignable(elementType, argType) ||
+                        (argType.isArray() && typeUtils.isAssignable(varargsType, argType)))) {
                     var message = "Incompatible argument type for varargs parameter '" + parameters.get(parameters.size() - 1).getName() +
                             "'. Expected '" + elementType.getName() +
                             "', but got '" + argType.getName() + (argType.isArray() ? "[]" : "") + "'.";

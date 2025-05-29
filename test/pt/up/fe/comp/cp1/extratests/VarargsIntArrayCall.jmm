@@ -1,0 +1,9 @@
+class A {
+    int f1(int... a) {
+        return 0;
+    }
+    int f2() {
+        this.f1([1,2]);
+        return 0;
+    }
+}
