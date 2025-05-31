@@ -1,82 +1,103 @@
 package pt.up.fe.comp2025.backend;
 
-import org.specs.comp.ollir.*;
-import org.specs.comp.ollir.inst.*;
-import org.specs.comp.ollir.tree.TreeNode;
-import org.specs.comp.ollir.type.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.specs.comp.ollir.ArrayOperand;
+import org.specs.comp.ollir.ClassUnit;
+import org.specs.comp.ollir.Descriptor;
+import org.specs.comp.ollir.Element;
+import org.specs.comp.ollir.Field;
+import org.specs.comp.ollir.LiteralElement;
 import org.specs.comp.ollir.Method;
+import org.specs.comp.ollir.Operand;
+import org.specs.comp.ollir.inst.ArrayLengthInstruction;
+import org.specs.comp.ollir.inst.AssignInstruction;
+import org.specs.comp.ollir.inst.BinaryOpInstruction;
+import org.specs.comp.ollir.inst.CallInstruction;
+import org.specs.comp.ollir.inst.CondBranchInstruction;
+import org.specs.comp.ollir.inst.GetFieldInstruction;
+import org.specs.comp.ollir.inst.GotoInstruction;
+import org.specs.comp.ollir.inst.Instruction;
+import org.specs.comp.ollir.inst.InvokeSpecialInstruction;
+import org.specs.comp.ollir.inst.InvokeStaticInstruction;
+import org.specs.comp.ollir.inst.InvokeVirtualInstruction;
+import org.specs.comp.ollir.inst.NewInstruction;
+import org.specs.comp.ollir.inst.PutFieldInstruction;
+import org.specs.comp.ollir.inst.ReturnInstruction;
+import org.specs.comp.ollir.inst.SingleOpInstruction;
+import org.specs.comp.ollir.inst.UnaryOpInstruction;
+import org.specs.comp.ollir.tree.TreeNode;
+import org.specs.comp.ollir.type.ArrayType;
+import org.specs.comp.ollir.type.BuiltinKind;
+import org.specs.comp.ollir.type.BuiltinType;
+import org.specs.comp.ollir.type.Type;
+
 import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.comp.jmm.report.Report;
-import pt.up.fe.comp2025.optimization.OptUtils;
+import pt.up.fe.comp2025.backend.builders.AssignInstructionBuilder;
+import pt.up.fe.comp2025.backend.builders.BinaryOpInstructionBuilder;
+import pt.up.fe.comp2025.backend.builders.CallInstructionBuilder;
+import pt.up.fe.comp2025.backend.builders.CondBranchInstructionBuilder;
+import pt.up.fe.comp2025.backend.builders.ControlFlowInstructionBuilder;
+import pt.up.fe.comp2025.backend.builders.FieldAccessInstructionBuilder;
+import pt.up.fe.comp2025.backend.builders.UnaryOpInstructionBuilder;
 import pt.up.fe.specs.util.classmap.FunctionClassMap;
-import pt.up.fe.specs.util.exceptions.NotImplementedException;
-import pt.up.fe.specs.util.utilities.StringLines;
-import static org.specs.comp.ollir.OperationType.*;
 
-
-import java.util.*;
-import java.util.stream.Collectors;
-
+/**
+ * Generates Jasmin code from an OllirResult.
+ * <p>
+ * One JasminGenerator instance per OllirResult.
+ */
 public class JasminGenerator {
-    private static final String TAB = "    ";
     private static final String NL = "\n";
-    private static final Set<OperationType> comparators = Set.of(
-            LTE, LTH, GTH, GTE, EQ, NEQ
-    );
+    private static final String TAB = "   ";
 
     private final OllirResult ollirResult;
-    private final Map<String, String> importFullNames = new HashMap<>();
+    private final JasminUtils types;
     private final FunctionClassMap<TreeNode, String> generators;
 
     List<Report> reports;
     String code;
     Method currentMethod;
 
-    private int stack = 0;
+    private int labelCounter = 0;
     private int maxStack = 0;
-    private int maxLocals = 0;
-    //private final ClassUnit classUnit;
+    private int stack = 0;
+
+    private final Map<String, Integer> methodMaxStack = new HashMap<>();
+    private final Map<String, Integer> methodMaxLocals = new HashMap<>();
 
     public JasminGenerator(OllirResult ollirResult) {
         this.ollirResult = ollirResult;
-
         this.reports = new ArrayList<>();
+        this.types = new JasminUtils(ollirResult);
         code = null;
         currentMethod = null;
 
         this.generators = new FunctionClassMap<>();
-        generators.put(ClassUnit.class, this::generateClassUnit);
-        generators.put(Method.class, this::generateMethod);
-        generators.put(GetFieldInstruction.class, this::generateGetField);
-        generators.put(PutFieldInstruction.class, this::generatePutField);
-        generators.put(CallInstruction.class, this::generateCall);
-        generators.put(AssignInstruction.class, this::generateAssign);
-        generators.put(SingleOpInstruction.class, this::generateSingleOp);
-        generators.put(LiteralElement.class, this::generateLiteral);
-        generators.put(Operand.class, this::getOperand);
-        generators.put(BinaryOpInstruction.class, this::generateBinaryOp);
-        generators.put(UnaryOpInstruction.class, this::generateUnaryOp);
-        generators.put(ReturnInstruction.class, this::generateReturn);
-        generators.put(CondBranchInstruction.class, this::generateConditional);
-        generators.put(GotoInstruction.class, this::generateGoto);
-        generators.put(Instruction.class, this::generateInstruction);
-    }
-
-    private static String fieldClassAndName(Operand opClass, Operand field) {
-        var className = opClass.toElement().getType();
-        var name = className.toString();
-        name = name.substring(name.lastIndexOf("(") + 1, name.length() - 1);
-        return name + "/" + field.getName();
-    }
-
-    private void updateStack(int inc) {
-        stack += inc;
-        if (stack < 0) System.out.println("ERROR in stack size");
-        maxStack = Math.max(maxStack, stack);
-    }
-
-    private void updateLocal(int vr) {
-        maxLocals = Math.max(maxLocals, vr + 1);
+        generators.put(ClassUnit.class, obj -> generateClassUnit((ClassUnit) obj));
+        generators.put(Method.class, obj -> generateMethod((Method) obj));
+        generators.put(AssignInstruction.class, obj -> generateAssign((AssignInstruction) obj));
+        generators.put(SingleOpInstruction.class, obj -> generateSingleOp((SingleOpInstruction) obj));
+        generators.put(LiteralElement.class, obj -> generateLiteral((LiteralElement) obj));
+        generators.put(Operand.class, obj -> generateOperand((Operand) obj));
+        generators.put(BinaryOpInstruction.class, obj -> generateBinaryOp((BinaryOpInstruction) obj));
+        generators.put(ReturnInstruction.class, obj -> generateReturn((ReturnInstruction) obj));
+        generators.put(CallInstruction.class, obj -> generateCall((CallInstruction) obj));
+        generators.put(CondBranchInstruction.class, obj -> generateCondBranch((CondBranchInstruction) obj));
+        generators.put(GotoInstruction.class, obj -> generateGoto((GotoInstruction) obj));
+        generators.put(ArrayOperand.class, obj -> generateArrayOperand((ArrayOperand) obj));
+        generators.put(GetFieldInstruction.class, obj -> generateGetField((GetFieldInstruction) obj));
+        generators.put(PutFieldInstruction.class, obj -> generatePutField((PutFieldInstruction) obj));
+        generators.put(UnaryOpInstruction.class, obj -> generateUnaryOp((UnaryOpInstruction) obj));
+        generators.put(NewInstruction.class, obj -> generateNew((NewInstruction) obj));
+        generators.put(InvokeSpecialInstruction.class, obj -> generateCall((InvokeSpecialInstruction) obj));
+        generators.put(InvokeVirtualInstruction.class, obj -> generateCall((InvokeVirtualInstruction) obj));
+        generators.put(InvokeStaticInstruction.class, obj -> generateCall((InvokeStaticInstruction) obj));
+        generators.put(ArrayLengthInstruction.class, obj -> generateArrayLength((ArrayLengthInstruction) obj));
     }
 
     public List<Report> getReports() {
@@ -87,737 +108,608 @@ public class JasminGenerator {
         if (code == null) {
             code = generators.apply(ollirResult.getOllirClass());
         }
-
-        return formatJasmin(code);
-    }
-
-    private String formatJasmin(String code) {
-        var lines = code.split("\n");
-
-        var formatted = new StringBuilder();
-
-        var indent = 0;
-        for (var line : lines) {
-            if (line.startsWith(".end")) {
-                indent--;
-            }
-
-            formatted.append(TAB.repeat(indent)).append(line).append(NL);
-
-            if (line.startsWith(".method")) {
-                indent++;
-            }
-        }
-
-        System.out.println(formatted);
-        return formatted.toString();
-    }
-
-    private void addImportFullNames(ClassUnit classUnit) {
-        for (var i : classUnit.getImports()) {
-            String importNonQualified = i.substring(i.lastIndexOf(".") + 1);
-            i = i.replace(".", "/");
-            importFullNames.put(importNonQualified, i);
-        }
+        return code;
     }
 
     private String generateClassUnit(ClassUnit classUnit) {
-        addImportFullNames(classUnit);
+        ClassStructureBuilder structureBuilder = new ClassStructureBuilder();
 
-        var code = new StringBuilder();
+        // Build complete class structure
+        structureBuilder.withClassDeclaration(ollirResult.getOllirClass().getClassName())
+                .withInheritance(resolveParentClassName(classUnit))
+                .withFieldDeclarations(classUnit.getFields())
+                .withDefaultConstructor()
+                .withMethodImplementations(filterNonConstructorMethods(ollirResult.getOllirClass().getMethods()));
 
-        var modifier = classUnit.getClassAccessModifier() != AccessModifier.DEFAULT ?
-                classUnit.getClassAccessModifier().name().toLowerCase() + " " : "";
+        return structureBuilder.buildJasminCode();
+    }
 
-        var className = classUnit.getClassName();
-        code.append(".class ").append(modifier).append(className).append(NL);
+    // Inner class for building Jasmin class structure
+    private class ClassStructureBuilder {
+        private StringBuilder codeBuffer;
+        private String parentClass;
 
-        var superClass = getSuperClassName();
-        code.append(".super ").append(superClass).append(NL).append(NL);
-
-        for (var field : classUnit.getFields()) {
-            code.append(getField(field)).append(NL);
+        public ClassStructureBuilder() {
+            this.codeBuffer = new StringBuilder();
         }
 
-        for (var method : classUnit.getMethods()) {
-            if (method.isConstructMethod()) {
-                code.append(getConstructor(superClass));
-            } else {
-                code.append(generators.apply(method));
+        public ClassStructureBuilder withClassDeclaration(String className) {
+            codeBuffer.append(".class ").append(className).append(NL).append(NL);
+            return this;
+        }
+
+        public ClassStructureBuilder withInheritance(String superClass) {
+            this.parentClass = superClass;
+            codeBuffer.append(".super ").append(superClass).append(NL).append(NL);
+            return this;
+        }
+
+        public ClassStructureBuilder withFieldDeclarations(List<Field> fields) {
+            generateFieldDeclarations(fields);
+            return this;
+        }
+
+        public ClassStructureBuilder withDefaultConstructor() {
+            codeBuffer.append(createConstructorCode(parentClass)).append(NL);
+            return this;
+        }
+
+        public ClassStructureBuilder withMethodImplementations(List<Method> methods) {
+            for (Method method : methods) {
+                calculateMethodLimits(method);
+                codeBuffer.append(generators.apply(method));
             }
-            code.append(NL).append(NL);
+            return this;
         }
 
-        return code.toString();
+        public String buildJasminCode() {
+            return codeBuffer.toString();
+        }
+
+        private void generateFieldDeclarations(List<Field> fields) {
+            for (Field field : fields) {
+                codeBuffer.append(".field ")
+                        .append(types.getModifier(field.getFieldAccessModifier()))
+                        .append(field.getFieldName())
+                        .append(" ")
+                        .append(types.getJasminType(field.getFieldType()))
+                        .append(NL);
+            }
+
+            if (!fields.isEmpty()) {
+                codeBuffer.append(NL);
+            }
+        }
+
+        private String createConstructorCode(String superClassName) {
+            return String.format("""
+                    ; default constructor
+                    .method public <init>()V
+                       aload_0
+                       invokespecial %s/<init>()V
+                       return
+                    .end method
+                    """, superClassName);
+        }
+    }
+
+    private String resolveParentClassName(ClassUnit classUnit) {
+        String parentClass = classUnit.getSuperClass();
+        return (parentClass != null && !parentClass.isEmpty()) ? parentClass : "java/lang/Object";
+    }
+
+    private List<Method> filterNonConstructorMethods(List<Method> methods) {
+        return methods.stream()
+                .filter(method -> !method.isConstructMethod())
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    // Removed old helper methods - replaced by ClassStructureBuilder
+
+    private void calculateMethodLimits(Method method) {
+        MethodAnalyzer analyzer = new MethodAnalyzer(method);
+        methodMaxLocals.put(method.getMethodName(), analyzer.computeMaxLocals());
+        methodMaxStack.put(method.getMethodName(), analyzer.computeMaxStackSize());
+    }
+
+    // Inner class for analyzing method requirements
+    private class MethodAnalyzer {
+        private final Method method;
+
+        public MethodAnalyzer(Method method) {
+            this.method = method;
+        }
+
+        public int computeMaxLocals() {
+            int maxLocals = method.getParams().size() + 1;
+            for (var entry : method.getVarTable().entrySet()) {
+                Descriptor descriptor = entry.getValue();
+                int virtualReg = descriptor.getVirtualReg();
+                maxLocals = Math.max(maxLocals, virtualReg + 1);
+            }
+            return maxLocals;
+        }
+
+        public int computeMaxStackSize() {
+            StackCalculator calculator = new StackCalculator();
+            return calculator.calculateForMethod(method);
+        }
+    }
+
+    // Separate class for stack size calculations
+    private class StackCalculator {
+        public int calculateForMethod(Method method) {
+            int maxStack = 0;
+            int currentStack = 0;
+
+            for (Instruction inst : method.getInstructions()) {
+                int stackDelta = analyzeStackChange(inst);
+                currentStack += stackDelta;
+                maxStack = Math.max(maxStack, currentStack);
+
+                // Ensure stack doesn't go negative
+                if (currentStack < 0) {
+                    currentStack = 0;
+                }
+            }
+
+            int minimumRequired = calculateMinimumRequiredStack(method);
+            return Math.max(maxStack, minimumRequired);
+        }
+
+        private int calculateMinimumRequiredStack(Method method) {
+            int minStack = 1; // Base requirement
+
+            for (Instruction inst : method.getInstructions()) {
+                minStack = Math.max(minStack, getMinStackForInstruction(inst));
+            }
+            return minStack;
+        }
+
+        private int getMinStackForInstruction(Instruction inst) {
+            if (inst instanceof CallInstruction call) {
+                int argsCount = call.getOperands().size() - 2;
+                if (call instanceof InvokeVirtualInstruction || call instanceof InvokeSpecialInstruction) {
+                    return 1 + argsCount + 2; // object ref + args + buffer
+                } else if (call instanceof InvokeStaticInstruction) {
+                    return argsCount + 2; // args + buffer
+                } else if (call instanceof NewInstruction) {
+                    return 3; // new + dup + args
+                }
+            } else if (inst instanceof BinaryOpInstruction) {
+                return 3; // two operands + result
+            } else if (inst instanceof AssignInstruction assign) {
+                if (assign.getDest() instanceof ArrayOperand) {
+                    return 4; // array ref + index + value + buffer
+                }
+            }
+            return 1;
+        }
+
+        private int analyzeStackChange(Instruction inst) {
+            return getStackChange(inst);
+        }
+    }
+
+    private int getStackChange(Instruction inst) {
+        if (inst instanceof AssignInstruction assign) {
+            Element lhs = assign.getDest();
+            Instruction rhs = assign.getRhs();
+            if (lhs instanceof ArrayOperand) {
+                return getStackChange(rhs) + 1 - 1;
+            } else {
+                return getStackChange(rhs) - 1;
+            }
+        }
+        if (inst instanceof BinaryOpInstruction) {
+            return 1;
+        }
+        if (inst instanceof UnaryOpInstruction) {
+            return 0;
+        }
+        if (inst instanceof CallInstruction call) {
+            int argsCount = call.getOperands().size() - 2;
+            boolean hasReturnValue = !(call.getReturnType() instanceof BuiltinType) ||
+                    ((BuiltinType) call.getReturnType()).getKind() != BuiltinKind.VOID;
+            if (call instanceof InvokeVirtualInstruction || call instanceof InvokeSpecialInstruction) {
+                return (1 + argsCount) - (hasReturnValue ? 0 : 1 + argsCount);
+            } else if (call instanceof InvokeStaticInstruction) {
+                return argsCount - (hasReturnValue ? argsCount - 1 : argsCount);
+            } else if (call instanceof NewInstruction) {
+                Type returnType = call.getReturnType();
+                if (returnType instanceof ArrayType) {
+                    return 1 - 1 + 1;
+                } else {
+                    return 2;
+                }
+            }
+        }
+        if (inst instanceof ReturnInstruction) {
+            return 0;
+        }
+        if (inst instanceof CondBranchInstruction) {
+            return 1;
+        }
+        if (inst instanceof SingleOpInstruction) {
+            return 1;
+        }
+        if (inst instanceof ArrayLengthInstruction) {
+            return 1 - 1 + 1;
+        }
+        if (inst instanceof GetFieldInstruction) {
+            return 1 - 1 + 1;
+        }
+        if (inst instanceof PutFieldInstruction) {
+            return 1;
+        }
+        if (inst instanceof GotoInstruction) {
+            return 0;
+        }
+        return 0;
+    }
+
+    // Utility methods for code generation
+    private void updateStackSize(int change) {
+        stack += change;
+        maxStack = Math.max(maxStack, stack);
+        if (currentMethod != null) {
+            methodMaxStack.put(currentMethod.getMethodName(), maxStack);
+        }
+    }
+
+    private String getNextLabel() {
+        return "L" + (labelCounter++);
     }
 
     private String generateMethod(Method method) {
-        // set method
-        currentMethod = method;
+        MethodBuilder methodBuilder = new MethodBuilder(method);
+        return methodBuilder.withSignature()
+                .withLimits()
+                .withInstructionProcessing()
+                .buildJasminMethod();
+    }
 
-        var code = new StringBuilder(getMethodHeader(method));
-        updateLocal(method.getParams().size());
-        var instructions = new StringBuilder();
+    // Inner class for building complete method structures
+    private class MethodBuilder {
+        private final Method method;
+        private final StringBuilder codeBuffer;
+        private final String methodName;
 
-        for (var inst : method.getInstructions()) {
-            var labels = method.getLabels(inst);
+        public MethodBuilder(Method method) {
+            this.method = method;
+            this.methodName = method.getMethodName();
+            this.codeBuffer = new StringBuilder();
+        }
 
-            for (var label : labels) {
-                instructions.append(label).append(":\n");
+        public MethodBuilder withSignature() {
+            String methodSignature = buildMethodSignature();
+            codeBuffer.append(methodSignature);
+            return this;
+        }
+
+        public MethodBuilder withLimits() {
+            int stackLimit = methodMaxStack.getOrDefault(methodName, 5);
+            int localsLimit = methodMaxLocals.getOrDefault(methodName, 99);
+
+            codeBuffer.append(TAB).append(".limit stack ").append(stackLimit).append(NL);
+            codeBuffer.append(TAB).append(".limit locals ").append(localsLimit).append(NL);
+            return this;
+        }
+
+        public MethodBuilder withInstructionProcessing() {
+            initializeMethodContext();
+            processInstructionSequence();
+            finalizeMethod();
+            return this;
+        }
+
+        public String buildJasminMethod() {
+            return codeBuffer.toString();
+        }
+
+        private String buildMethodSignature() {
+            String modifier = determineMethodModifier();
+            String parameterSignature = buildParameterSignature();
+            String returnTypeSignature = types.getJasminType(method.getReturnType());
+
+            return String.format("\n.method %s%s(%s)%s%s",
+                    modifier, methodName, parameterSignature, returnTypeSignature, NL);
+        }
+
+        private String determineMethodModifier() {
+            if (methodName.equals("main")) {
+                return "public static ";
             }
+            return types.getModifier(method.getMethodAccessModifier());
+        }
 
-            var instCode = StringLines.getLines(generators.apply(inst)).stream()
-                    .collect(Collectors.joining(NL, "", NL));
+        private String buildParameterSignature() {
+            StringBuilder paramsBuilder = new StringBuilder();
+            for (Element param : method.getParams()) {
+                paramsBuilder.append(generateParameterType(param));
+            }
+            return paramsBuilder.toString();
+        }
 
-            instructions.append(instCode);
-
-            while (this.stack > 0) {
-                instructions.append("pop\n");
-                this.stack--;
+        private String generateParameterType(Element param) {
+            if (param.getType() instanceof ArrayType) {
+                if (methodName.equals("main") && param.equals(method.getParams().get(0))) {
+                    return "[Ljava/lang/String;";
+                }
+                Type elemType = ((ArrayType) param.getType()).getElementType();
+                return "[" + types.getJasminType(elemType);
+            } else if (param instanceof ArrayOperand) {
+                Type elemType = ((ArrayOperand) param).getType();
+                if (elemType instanceof ArrayType) {
+                    elemType = ((ArrayType) elemType).getElementType();
+                }
+                return "[" + types.getJasminType(elemType);
+            } else {
+                return types.getJasminType(param.getType());
             }
         }
 
-        code.append(".limit stack ").append(maxStack).append(NL);
-        code.append(".limit locals ").append(maxLocals).append(NL);
-        code.append(instructions);
-        code.append(".end method");
-
-        // unset method
-        currentMethod = null;
-        this.maxStack = 0;
-        this.maxLocals = 0;
-
-        return code.toString();
-    }
-
-    private String getMethodHeader(Method method) {
-        var header = new StringBuilder();
-
-        // calculate modifier
-        var modifier = method.getMethodAccessModifier() != AccessModifier.DEFAULT ?
-                method.getMethodAccessModifier().name().toLowerCase() + " " : "public ";
-
-        if (method.isStaticMethod()) {
-            modifier += "static ";
+        private void initializeMethodContext() {
+            currentMethod = method;
+            maxStack = 0;
+            stack = 0;
         }
 
-        if (method.isFinalMethod()) {
-            modifier += "final ";
-        }
-
-        header.append(".method ").append(modifier).append(method.getMethodName());
-
-        // Add parameters
-        var params = method.getParams().stream()
-                .map(this::generateParam).toList();
-
-        header.append("(").append(String.join("", params)).append(")");
-
-        // Add return type
-        var returnType = generateParam(method.getReturnType());
-        header.append(returnType).append(NL);
-
-        return header.toString();
-    }
-
-    private String generateGetField(GetFieldInstruction instruction) {
-        StringBuilder code = new StringBuilder();
-
-        // Retrieve the virtual register for the object
-        int virtualRegister = currentMethod.getVarTable()
-                .get(instruction.getObject().getName())
-                .getVirtualReg();
-        updateLocal(virtualRegister);
-
-        // Determine the appropriate aload instruction
-        String aloadInstruction = virtualRegister <= 3 ? "aload_" : "aload ";
-        code.append(aloadInstruction).append(virtualRegister).append(NL);
-
-        // Update the stack size
-        updateStack(1);
-
-        // Generate the getfield instruction
-        code.append("getfield ")
-                .append(fieldClassAndName(instruction.getObject(), instruction.getField()))
-                .append(" ")
-                .append(generateParam(instruction.getField()))
-                .append(NL);
-
-        return code.toString();
-    }
-
-    private String generateParam(Element element) {
-        return generateType(element.getType());
-    }
-
-    private String generateParam(Type type) {
-        return generateType(type);
-    }
-
-    private String generatePutField(PutFieldInstruction instruction) {
-        var code = new StringBuilder();
-
-        int vr = currentMethod.getVarTable().get(instruction.getObject().getName()).getVirtualReg();
-        updateLocal(vr);
-
-        String aload = vr <= 3 ? "aload_" : "aload ";
-
-        // push object onto the stack
-        code.append(aload).append(vr).append(NL);
-
-        updateStack(1);
-
-        // get value from the field
-        code.append("getfield ");
-
-        code.append(fieldClassAndName(instruction.getObject(), instruction.getField()));
-        code.append(" ");
-
-        // Add return type
-        var returnType = generateType(instruction.getField().getType());
-        code.append(returnType).append(NL);
-
-        return code.toString();
-    }
-
-    private String generateCall(CallInstruction instruction) {
-
-        String type = instruction.getInvocationKind();
-
-        return switch (type) {
-            case "InvokeStatic", "InvokeSpecial", "InvokeVirtual" -> generateInvoke(instruction);
-            case "New" -> generateNew(instruction);
-            case "ArrayLength" -> generateArrayLength(instruction);
-            case "Ldc" -> generateLoadConstant(instruction);
-            default -> throw new NotImplementedException(type);
-        };
-    }
-
-    private String generateArrayLength(CallInstruction instruction) {
-        var code = new StringBuilder();
-        Operand caller = (Operand) instruction.getCaller();
-        int vr = currentMethod.getVarTable().get(caller.getName()).getVirtualReg();
-
-        String aload = vr <= 3 ? "aload_" : "aload ";
-        // push array to the stack
-        code.append(aload).append(vr).append(NL);
-        // get array length
-        code.append("arraylength\n");
-
-        updateLocal(vr);
-        updateStack(1);
-
-
-        return code.toString();
-    }
-
-    private String generateLoadConstant(CallInstruction instruction) {
-        var code = new StringBuilder();
-
-        // generate code for calling method
-        var caller = instruction.getCaller().toString();
-        var name = caller.substring(caller.lastIndexOf("(") + 1, caller.length() - 1);
-        code.append("ldc ").append(name).append(NL);
-        updateStack(1);
-
-        return code.toString();
-    }
-
-    private String generateNew(CallInstruction instruction) {
-        Type returnType = instruction.getReturnType();
-
-        if (returnType instanceof ArrayType) {
-            return generateNewArray(instruction);
-        }
-
-        var code = new StringBuilder();
-
-        var caller = instruction.getCaller().toString();
-        var name = caller.substring(caller.lastIndexOf("(") + 1, caller.length() - 1);
-        name = importFullNames.getOrDefault(name, name);
-        code.append("   new ").append(name).append(NL);
-
-        updateStack(1);
-
-        return code.toString();
-    }
-
-    private String generateNewArray(CallInstruction instruction) {
-        Element arg = instruction.getArguments().getFirst();
-
-        updateStack(1);
-        updateStack(-1);
-
-        return getOperand(arg) + "newarray int\n";
-    }
-
-
-    private String getInvokeVirtual(CallInstruction instruction, Type type) {
-        var code = new StringBuilder();
-        var className = type.toString();
-        className = className.substring(className.lastIndexOf("(") + 1, className.length() - 1);
-        className = importFullNames.getOrDefault(className, className);
-
-        code.append("invokevirtual ").append(className).append("/");
-
-        var methodName = ((LiteralElement) instruction.getMethodName()).getLiteral();
-
-        code.append(methodName);
-        return code.toString();
-    }
-
-    private String getInvokeStatic(CallInstruction instruction, String caller) {
-        var code = new StringBuilder();
-        caller = importFullNames.getOrDefault(caller, caller);
-        code.append("invokestatic ").append(caller).append("/");
-
-        var methodName = ((LiteralElement) instruction.getMethodName()).getLiteral();
-        //methodName = methodName.substring(1, methodName.length() - 1);
-
-        code.append(methodName);
-        return code.toString();
-    }
-
-    private String getInvokeSpecial(Type type) {
-
-        var className = type.toString();
-        className = className.substring(className.lastIndexOf("(") + 1, className.length() - 1);
-        className = importFullNames.getOrDefault(className, className);
-
-        return "invokespecial " + className + "/<init>";
-    }
-
-    private String generateInvoke(CallInstruction instruction) {
-        var code = new StringBuilder();
-
-        // push object onto the stack
-        Operand caller = (Operand) instruction.getCaller();
-        code.append(getOperand(caller));
-
-        int numArgs = instruction.getArguments().size();
-        // generate code for loading arguments
-        for (var arg : instruction.getArguments()) {
-            code.append(getOperand(arg));
-        }
-
-        updateStack(-numArgs);
-
-        switch (instruction.getInvocationKind()) {
-            case "InvokeStatic" -> code.append(getInvokeStatic(instruction, caller.getName()));
-            case "InvokeSpecial" -> {
-                code.append(getInvokeSpecial(caller.getType()));
-                updateStack(-1);
+        private void processInstructionSequence() {
+            for (var inst : method.getInstructions()) {
+                processLabelsForInstruction(inst);
+                processInstructionCode(inst);
             }
-            case "InvokeVirtual"-> {
-                code.append(getInvokeVirtual(instruction, caller.getType()));
-                updateStack(-1);
-            }
-            default -> throw new NotImplementedException(instruction.getInvocationKind());
         }
 
-        code.append("(");
-
-        // generate code for loading arguments
-        for (var arg : instruction.getArguments()) {
-            code.append(generateParam(arg));
-        }
-
-        String returnType = generateParam(instruction.getReturnType());
-        code.append(")").append(returnType);
-        code.append(NL);
-
-        if (!returnType.equals("V")) {
-            updateStack(1);
-        }
-
-        return code.toString();
-    }
-
-    private String generateAssign(AssignInstruction assignInstruction) {
-        var code = new StringBuilder();
-        Element dest = assignInstruction.getDest();
-        Instruction rhs = assignInstruction.getRhs();
-
-        if (dest instanceof Operand lhsOperand && BuiltinType.is(lhsOperand.getType(), BuiltinKind.INT32)) {
-            var variable = currentMethod.getVarTable().get(lhsOperand.getName());
-            if (variable != null) {
-                int varIndex = variable.getVirtualReg();
-                String varName = lhsOperand.getName();
-
-                if (rhs instanceof BinaryOpInstruction binOp && binOp.getOperation().getOpType() == OperationType.ADD) {
-                    Operand varOp = null;
-                    LiteralElement litOp = null;
-
-                    if (binOp.getLeftOperand() instanceof Operand left && left.getName().equals(varName) && binOp.getRightOperand() instanceof LiteralElement rightLit) {
-                        varOp = left;
-                        litOp = rightLit;
-                    } else if (binOp.getRightOperand() instanceof Operand right && right.getName().equals(varName) && binOp.getLeftOperand() instanceof LiteralElement leftLit) {
-                        varOp = right;
-                        litOp = leftLit;
-                    }
-
-                    if (varOp != null && litOp != null) {
-
-                        try {
-                            int incValue = Integer.parseInt(litOp.getLiteral());
-                            if (incValue != 0 && incValue >= -128 && incValue <= 127) {
-                                updateLocal(varIndex);
-                                code.append("iinc ").append(varIndex).append(" ").append(incValue).append(NL);
-                                return code.toString();
-                            }
-                        } catch (NumberFormatException ignored) {
-                        }
-                    }
+        private void processLabelsForInstruction(Instruction inst) {
+            if (method.getLabels(inst) != null && !method.getLabels(inst).isEmpty()) {
+                for (String label : method.getLabels(inst)) {
+                    codeBuffer.append(label).append(":").append(NL);
                 }
             }
         }
 
-        String rhsCodeString = generators.apply(rhs);
-
-        if (dest instanceof Operand lhsOperand) {
-            code.append(rhsCodeString);
-            var variable = currentMethod.getVarTable().get(lhsOperand.getName());
-            if (variable == null) {
-                reports.add(Report.newError(null, -1, -1, "Variable not found in var table for assignment: " + lhsOperand.getName(), null));
-                return "; ERROR: Variable not found for assignment: " + lhsOperand.getName() + NL;
+        private void processInstructionCode(Instruction inst) {
+            String instCode = generators.apply(inst);
+            String[] lines = instCode.split("\n");
+            for (String line : lines) {
+                if (!line.trim().isEmpty()) {
+                    codeBuffer.append(TAB).append(line).append(NL);
+                }
             }
-            int reg = variable.getVirtualReg();
-            Type type = lhsOperand.getType();
-            updateLocal(reg);
-
-            updateStack(-1);
-
-            if (BuiltinType.is(type, BuiltinKind.INT32) ||
-                    BuiltinType.is(type, BuiltinKind.BOOLEAN)) {
-                String istore = reg <= 3 ? "istore_" : "istore ";
-                code.append(istore).append(reg).append(NL);
-            }
-
-            // Assumindo que outros tipos (OBJECTREF, ARRAYREF, STRING, CLASS) são referências
-            else {
-                String astore = reg <= 3 ? "astore_" : "astore ";
-                code.append(astore).append(reg).append(NL);
-            }
-        } else if (dest instanceof ArrayOperand arrayLhs) {
-            var variableInfo = currentMethod.getVarTable().get(arrayLhs.getName());
-            if (variableInfo == null) {
-                reports.add(Report.newError(null, -1, -1, "Array variable not found for store: " + arrayLhs.getName(), null));
-                return "; ERROR: Array variable not found for store: " + arrayLhs.getName() + NL;
-            }
-            int virtualRegister = variableInfo.getVirtualReg();
-            updateLocal(virtualRegister);
-            String loadInstruction = virtualRegister <= 3 ? "aload_" : "aload ";
-
-            code.append(loadInstruction).append(virtualRegister).append(NL);
-            updateStack(1);
-
-            code.append(generators.apply(arrayLhs.getIndexOperands().getFirst()));
-
-            code.append(rhsCodeString);
-            if(rhs instanceof AssignInstruction assignRhs && assignRhs.getDest() instanceof Operand) {
-                // Se o lado direito é uma atribuição simples, só empilha o valor
-                code.append(generators.apply(assignRhs.getRhs()));
-                code.append("iastore").append(NL);
-            } else {
-                code.append("aastore").append(NL);
-            }
-
-        } else {
-            reports.add(Report.newError(null, -1, -1, "Unsupported destination type for assignment: " + dest.getClass().getName(), null));
-            throw new NotImplementedException("Assign to destination of type: " + dest.getClass().getName());
         }
 
-        return code.toString();
+        private void finalizeMethod() {
+            codeBuffer.append(".end method").append(NL);
+            currentMethod = null;
+        }
     }
 
-    private String generateSingleOp(SingleOpInstruction instruction) {
-        return generators.apply(instruction.getSingleOperand());
+    private String generateAssign(AssignInstruction assign) {
+        AssignInstructionBuilder builder = new AssignInstructionBuilder(
+                assign, currentMethod, types, generators);
+
+        return builder.withAssignmentGeneration()
+                .buildAssignInstruction();
+    }
+
+    private String generateSingleOp(SingleOpInstruction singleOp) {
+        return generators.apply(singleOp.getSingleOperand());
     }
 
     private String generateLiteral(LiteralElement literal) {
-
-        updateStack(1);
-        int n = Integer.parseInt(literal.getLiteral());
-
-        if (n == -1) return "iconst_m1" + NL;
-        if (n >= 0 && n <= 5) return "iconst_" + n + NL;
-        if (n >= Byte.MIN_VALUE && n <= Byte.MAX_VALUE) return "bipush " + n + NL;
-        if (n >= Short.MIN_VALUE && n <= Short.MAX_VALUE) return "sipush " + n + NL;
-
-        return "ldc " + n + NL;
+        ConstantValueHandler valueHandler = new ConstantValueHandler(literal);
+        return valueHandler.generateOptimalInstruction();
     }
 
+    // Inner class for handling constant value optimizations
+    private class ConstantValueHandler {
+        private final String value;
+        private final Type type;
 
-    private String getOperand(Element operand) {
-        if (operand instanceof ArrayOperand arrayOperand) {
-            return getArrayOperand(arrayOperand);
+        public ConstantValueHandler(LiteralElement literal) {
+            this.value = literal.getLiteral();
+            this.type = literal.getType();
         }
-        if (operand instanceof Operand simpleOperand) {
-            return resolveSimpleOperand(simpleOperand);
+
+        public String generateOptimalInstruction() {
+            if (isIntegerType()) {
+                return generateIntegerInstruction();
+            } else if (isBooleanType()) {
+                return generateBooleanInstruction();
+            }
+            return generateDefaultInstruction();
         }
-        return generators.apply(operand);
+
+        private boolean isIntegerType() {
+            return type instanceof BuiltinType builtinType &&
+                    builtinType.getKind() == BuiltinKind.INT32;
+        }
+
+        private boolean isBooleanType() {
+            return type instanceof BuiltinType builtinType &&
+                    builtinType.getKind() == BuiltinKind.BOOLEAN;
+        }
+
+        private String generateIntegerInstruction() {
+            try {
+                int intValue = Integer.parseInt(value);
+                return selectOptimalIntegerInstruction(intValue);
+            } catch (NumberFormatException e) {
+                return generateDefaultInstruction();
+            }
+        }
+
+        private String selectOptimalIntegerInstruction(int intValue) {
+            if (intValue >= -1 && intValue <= 5) {
+                return "iconst_" + (intValue == -1 ? "m1" : intValue) + NL;
+            } else if (intValue >= -128 && intValue <= 127) {
+                return "bipush " + intValue + NL;
+            } else if (intValue >= -32768 && intValue <= 32767) {
+                return "sipush " + intValue + NL;
+            }
+            return generateDefaultInstruction();
+        }
+
+        private String generateBooleanInstruction() {
+            if (value.equals("1")) {
+                return "iconst_1" + NL;
+            } else if (value.equals("0")) {
+                return "iconst_0" + NL;
+            }
+            return generateDefaultInstruction();
+        }
+
+        private String generateDefaultInstruction() {
+            return "ldc " + value + NL;
+        }
     }
 
-    private String getArrayOperand(ArrayOperand arrayOperand) {
-        var variableInfo = currentMethod.getVarTable().get(arrayOperand.getName());
-        int virtualRegister = variableInfo.getVirtualReg();
-        StringBuilder codeBuilder = new StringBuilder();
-
-        updateLocal(virtualRegister);
-        updateStack(1);
-
-        String loadInstruction = virtualRegister <= 3 ? "aload_" : "aload ";
-
-        codeBuilder.append(loadInstruction).append(virtualRegister).append(NL);
-        codeBuilder.append(getOperand(arrayOperand.getIndexOperands().getFirst()));
-        codeBuilder.append("iaload").append(NL);
-
-        updateStack(-1);
-
-        return codeBuilder.toString();
+    private String generateOperand(Operand operand) {
+        var descriptor = currentMethod.getVarTable().get(operand.getName());
+        Type type = operand.getType();
+        if (descriptor == null) {
+            if (type instanceof ArrayType) {
+                return "aload_1" + NL;
+            } else {
+                return "aload_1" + NL;
+            }
+        }
+        int reg = descriptor.getVirtualReg();
+        return types.getLoadInstruction(type, reg, false) + NL;
     }
 
-    private String getOperand(Operand operand) {
-        if (operand instanceof ArrayOperand op) {
-            return getArrayOperand(op);
+    private String generateArrayOperand(ArrayOperand arrayOp) {
+        var code = new StringBuilder();
+        if (arrayOp.isParameter()) {
+            String name = arrayOp.getName();
+            var descriptor = currentMethod.getVarTable().get(name);
+            if (descriptor == null) {
+                code.append("aload_1").append(NL);
+            } else {
+                int reg = descriptor.getVirtualReg();
+                code.append(types.getLoadInstruction(arrayOp.getType(), reg, true)).append(NL);
+            }
+            return code.toString();
         }
-
-        var variable = currentMethod.getVarTable().get(operand.getName());
-
-        if (variable == null) {
-            return "";
+        String name = arrayOp.getName();
+        var descriptor = currentMethod.getVarTable().get(name);
+        if (descriptor == null) {
+            code.append("aload_2").append(NL);
+        } else {
+            int reg = descriptor.getVirtualReg();
+            code.append(types.getLoadInstruction(arrayOp.getType(), reg, true)).append(NL);
         }
-
-        var reg = variable.getVirtualReg();
-        var type = operand.getType();
-
-        updateLocal(reg);
-        updateStack(1);
-
-        // Check for primitive types (int, boolean)
-        if (BuiltinType.is(type, BuiltinKind.INT32) ||
-                BuiltinType.is(type, BuiltinKind.BOOLEAN)) {
-            String iload = reg <= 3 ? "iload_" : "iload ";
-            return iload + reg + NL;
+        if (arrayOp.getIndexOperands().isEmpty()) {
+            return code.toString();
         }
-        // Check for reference types (String, objects, arrays)
-        else if (BuiltinType.is(type, BuiltinKind.STRING) ||
-                ClassType.is(type, ClassKind.OBJECTREF) ||
-                ClassType.is(type, ClassKind.THIS) ||
-                type instanceof ArrayType) {
-            String aload = reg <= 3 ? "aload_" : "aload ";
-            return aload + reg + NL;
+        code.append(generators.apply(arrayOp.getIndexOperands().get(0)));
+        Type arrayType = arrayOp.getType();
+        Type elemType = null;
+        if (arrayType instanceof ArrayType) {
+            elemType = ((ArrayType) arrayType).getElementType();
+        } else {
+            elemType = new BuiltinType(BuiltinKind.INT32);
         }
-
-        throw new NotImplementedException(type.toString());
-    }
-
-    private String resolveSimpleOperand(Operand operand) {
-        return generators.apply(operand);
+        code.append(types.getArrayLoadPrefix(elemType)).append(NL);
+        return code.toString();
     }
 
     private String generateBinaryOp(BinaryOpInstruction binaryOp) {
+        BinaryOpInstructionBuilder builder = new BinaryOpInstructionBuilder(
+                binaryOp, generators, this::getNextLabel);
+
+        String result = builder.withOperandAnalysis()
+                .buildBinaryOperation();
+
+        updateStackSize(-1);
+        return result;
+    }
+
+    private String generateUnaryOp(UnaryOpInstruction unaryOp) {
+        UnaryOpInstructionBuilder builder = new UnaryOpInstructionBuilder(
+                unaryOp, generators, this::getNextLabel);
+
+        return builder.withOperandLoading()
+                .withOperationGeneration()
+                .buildUnaryOpInstruction();
+    }
+
+    private String generateReturn(ReturnInstruction returnInst) {
+        ControlFlowInstructionBuilder builder = new ControlFlowInstructionBuilder(
+                generators, types);
+
+        return builder.withReturnGeneration(returnInst)
+                .buildControlFlowInstruction();
+    }
+
+    private String generateCall(CallInstruction call) {
+        CallInstructionBuilder builder = new CallInstructionBuilder(
+                call, ollirResult, types, generators);
+
+        return builder.withOperandLoading()
+                .withMethodInvocation()
+                .buildCallInstruction();
+    }
+
+    private String generateCondBranch(CondBranchInstruction condBranch) {
+        CondBranchInstructionBuilder builder = new CondBranchInstructionBuilder(
+                condBranch, generators);
+
+        return builder.withConditionAnalysis()
+                .buildCondBranchInstruction();
+    }
+
+    private String generateGoto(GotoInstruction gotoInst) {
+        ControlFlowInstructionBuilder builder = new ControlFlowInstructionBuilder(
+                generators, types);
+
+        return builder.withGotoGeneration(gotoInst)
+                .buildControlFlowInstruction();
+    }
+
+    private String generateGetField(GetFieldInstruction getField) {
+        FieldAccessInstructionBuilder builder = new FieldAccessInstructionBuilder(
+                generators, ollirResult, types);
+
+        return builder.withGetFieldGeneration(getField)
+                .buildFieldAccessInstruction();
+    }
+
+    private String generatePutField(PutFieldInstruction putField) {
+        FieldAccessInstructionBuilder builder = new FieldAccessInstructionBuilder(
+                generators, ollirResult, types);
+
+        return builder.withPutFieldGeneration(putField)
+                .buildFieldAccessInstruction();
+    }
+
+    private String generateNew(NewInstruction newInst) {
         var code = new StringBuilder();
-
-        // load values on the left and on the right
-        code.append(generators.apply(binaryOp.getLeftOperand()));
-        code.append(generators.apply(binaryOp.getRightOperand()));
-
-        OperationType type = binaryOp.getOperation().getOpType();
-        // apply operation
-        var op = switch (type) {
-            case ADD -> "iadd";
-            case MUL -> "imul";
-            case SUB, LTE, LTH, GTH, GTE, EQ, NEQ -> "isub";
-            case DIV -> "idiv";
-            case XOR -> "ixor";
-            case AND, ANDB, NOTB -> "iand";
-            case OR, ORB -> "ior";
-            default -> throw new NotImplementedException(binaryOp.getOperation().getOpType());
-        };
-
-        code.append(op).append(NL);
-
-        if (comparators.contains(type)) {
-            String ifInst = switch (type) {
-                case LTE -> "ifle ";
-                case LTH -> "iflt ";
-                case GTE -> "ifge ";
-                case GTH -> "ifgt ";
-                case EQ -> "ifeq ";
-                case NEQ -> "ifne ";
-                default -> throw new NotImplementedException(type);
-            };
-
-            String trueLabel = OptUtils.getLabel("L_fact");
-            String endLabel = OptUtils.getLabel("L_end");
-
-            code.append(ifInst).append(trueLabel).append("\n");
-            code.append("iconst_0\ngoto ").append(endLabel).append("\n");
-            code.append(trueLabel).append(":\niconst_1\n");
-            code.append(endLabel).append(":\n");
-        }
-
-        updateStack(-1);
-
-        return code.toString();
-    }
-
-    private String generateUnaryOp(UnaryOpInstruction instruction) {
-        var operand = instruction.getOperand();
-        String operandCode = generators.apply(operand);
-
-        updateStack(1);
-        updateStack(-1);
-
-        return operandCode + "iconst_1\nixor\n";
-    }
-    // todo: check later and fix
-    private String generateReturn(ReturnInstruction instruction) {
-        var returnType = instruction.getReturnType();
-        StringBuilder code = new StringBuilder();
-
-        // Check if return has a value (non-void)
-        if (instruction.hasReturnValue()) {
-            // Get the operand value from the Optional
-            Element operand = instruction.getOperand().orElseThrow(() ->
-                    new IllegalStateException("Return instruction claims to have value but operand is empty"));
-
-            // Generate code for the operand based on its actual type
-            code.append(generators.apply(operand));
-
-            // Determine the appropriate return instruction based on type
-            if (BuiltinType.is(returnType, BuiltinKind.INT32) ||
-                    BuiltinType.is(returnType, BuiltinKind.BOOLEAN)) {
-                code.append("ireturn").append(NL);
+        Type returnType = newInst.getReturnType();
+        if (returnType instanceof ArrayType) {
+            if (newInst.getOperands().size() > 0) {
+                Element sizeElem = newInst.getOperands().get(1);
+                code.append(generators.apply(sizeElem));
+                code.append("newarray int");
+                code.append(NL);
+                return code.toString();
+            } else {
+                code.append("newarray int").append(NL);
+                return code.toString();
             }
-            else if (BuiltinType.is(returnType, BuiltinKind.STRING) ||
-                    returnType instanceof ArrayType ||
-                    ClassType.is(returnType, ClassKind.OBJECTREF)) {
-                code.append("areturn").append(NL);
-            }
-            else {
-                throw new NotImplementedException(returnType.toString());
-            }
-
-            updateStack(-1); // Decrease stack by 1 for non-void returns
-        }
-        else {
-            // Void return doesn't consume stack items
-            code.append("return").append(NL);
-        }
-
-        return code.toString();
-    }
-
-    private String generateConditional(CondBranchInstruction instruction) {
-        if (instruction instanceof OpCondInstruction opCondInstruction) {
-            return generateOpCondInstruction(opCondInstruction);
-        }
-
-        return generateSingleOpCondInstruction((SingleOpCondInstruction) instruction);
-    }
-
-    private String generateOpCondInstruction(OpCondInstruction instruction) {
-        StringBuilder code = new StringBuilder();
-        Instruction condition = instruction.getCondition();
-        if (condition instanceof SingleOpInstruction) {
-            code.append(generators.apply(((SingleOpInstruction) condition).getSingleOperand()));
         } else {
-            code.append(generators.apply(condition));
+            return generateCall(newInst);
         }
-
-        updateStack(-1);
-        code.append("ifne ").append(instruction.getLabel()).append(NL);
-        return code.toString();
     }
 
-    private String generateSingleOpCondInstruction(SingleOpCondInstruction inst) {
-        StringBuilder code = new StringBuilder();
-        Instruction condition = inst.getCondition();
-        code.append(generators.apply(condition));
-        updateStack(-1);
-        code.append("ifne ").append(inst.getLabel());
+    private String generateArrayLength(ArrayLengthInstruction arrayLength) {
+        ControlFlowInstructionBuilder builder = new ControlFlowInstructionBuilder(
+                generators, types);
 
-        return code.toString();
-    }
-
-
-    private String generateGoto(GotoInstruction instruction) {
-        String label = instruction.getLabel();
-
-        return "goto " + label;
-    }
-
-    private String generateInstruction(Instruction instruction) {
-        System.out.println("Instruction not implemented: " + instruction);
-        return "";
-    }
-
-    public String getSuperClassName() {
-        var superClass = ollirResult.getOllirClass().getSuperClass();
-
-        if (superClass == null || superClass.equals("Object")) {
-            superClass = "java/lang/Object";
-        }
-
-        superClass = importFullNames.getOrDefault(superClass, superClass);
-        return superClass;
-    }
-
-    public String generateType(Type type) {
-        // For BuiltinType
-        if (BuiltinType.is(type, BuiltinKind.INT32)) return "I";
-        if (BuiltinType.is(type, BuiltinKind.STRING)) return "Ljava/lang/String;";
-        if (BuiltinType.is(type, BuiltinKind.BOOLEAN)) return "Z";
-        if (BuiltinType.is(type, BuiltinKind.VOID)) return "V";
-
-        // For ArrayType
-        if (type.getClass().equals(ArrayType.class)) {
-            ArrayType arrayType = (ArrayType) type;
-            return "[" + generateType(arrayType.getElementType());
-        }
-
-        // For ClassType
-        if (ClassType.is(type, ClassKind.OBJECTREF)) {
-            ClassType classType = (ClassType) type;
-            String name = classType.getName();
-            return "L" + importFullNames.getOrDefault(name, name) + ";";
-        }
-
-        throw new NotImplementedException(type.toString());
-    }
-
-    public String getField(Field field) {
-        var code = new StringBuilder();
-
-        var modifier = field.getFieldAccessModifier() != AccessModifier.DEFAULT ?
-                field.getFieldAccessModifier().name().toLowerCase() + " " : "";
-
-        if (field.isStaticField()) {
-            modifier += "static ";
-        }
-
-        if (field.isFinalField()) {
-            modifier += "final ";
-        }
-
-        code.append(".field ").append(modifier).append(field.getFieldName()).append(" ");
-
-        var type = generateType(field.getFieldType());
-        code.append(type).append(NL);
-
-        return code.toString();
-    }
-
-    private String getConstructor(String superClass) {
-        return """
-                .method public <init>()V
-                aload_0
-                invokespecial %s/<init>()V
-                return
-                .end method
-                """.formatted(superClass);
+        return builder.withArrayLengthGeneration(arrayLength)
+                .buildControlFlowInstruction();
     }
 
 }
