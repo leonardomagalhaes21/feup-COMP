@@ -76,17 +76,42 @@ public class BinaryOpInstructionBuilder {
         // Load only the right operand
         codeBuffer.append(generators.apply(instruction.getRightOperand()));
 
-        // Reverse the comparison direction for zero-left comparisons
-        String ifInstruction = getReversedComparisonInstruction();
+        // 0 < a, 0 <= a, 0 > a, 0 >= a, 0 == a, 0 != a
+        String ifInstruction = getZeroLeftComparisonInstruction();
         generateComparisonBranching(ifInstruction);
+    }
+
+    private String getZeroLeftComparisonInstruction() {
+        return switch (operationType) {
+            case LTH -> "ifgt "; // 0 < a  <=> a > 0
+            case LTE -> "ifge "; // 0 <= a <=> a >= 0
+            case GTH -> "iflt "; // 0 > a  <=> a < 0
+            case GTE -> "ifle "; // 0 >= a <=> a <= 0
+            case EQ -> "ifeq ";
+            case NEQ -> "ifne ";
+            default -> throw new NotImplementedException(operationType);
+        };
     }
 
     private void generateZeroRightComparison() {
         // Load only the left operand
         codeBuffer.append(generators.apply(instruction.getLeftOperand()));
 
-        String ifInstruction = getStandardComparisonInstruction();
+        // For a < 0, a <= 0, a > 0, a >= 0, a == 0, a != 0
+        String ifInstruction = getZeroRightComparisonInstruction();
         generateComparisonBranching(ifInstruction);
+    }
+
+    private String getZeroRightComparisonInstruction() {
+        return switch (operationType) {
+            case LTH -> "iflt ";
+            case LTE -> "ifle ";
+            case GTH -> "ifgt ";
+            case GTE -> "ifge ";
+            case EQ -> "ifeq ";
+            case NEQ -> "ifne ";
+            default -> throw new NotImplementedException(operationType);
+        };
     }
 
     private void generateStandardComparison() {
