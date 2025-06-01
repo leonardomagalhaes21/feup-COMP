@@ -27,6 +27,13 @@ This project implements the **frontend phase** of a Java Minus Minus (Jmm) compi
 - **Array Handling:** Transforms calls to varargs methods into array-based calls for better compatibility and performance.
 - **Control Flow Graphs:** Builds control flow graphs (CFGs) for methods to analyze and optimize live variable usage.
 
+## Jasmin Code Generation
+
+- **Assembly Generation:** The compiler translates the optimized OLLIR code into Jasmin assembly language.
+- **Instruction Mapping:** Implements comprehensive mapping from OLLIR instructions to corresponding Jasmin instructions, including arithmetic operations, method calls, and control flow.
+- **Stack Management:** Handles JVM stack operations efficiently, ensuring proper stack depth management and type consistency throughout code generation.
+- **Method and Class Structure:** Generates complete Jasmin class files with proper method signatures, field declarations, and inheritance relationships.
+
 ## Group Members
 
 - João Santos (202205794) - 33%
@@ -35,5 +42,5 @@ This project implements the **frontend phase** of a Java Minus Minus (Jmm) compi
 
 ## Self-Assessment
 
-We successfully implemented the compiler frontend and added extra components and tests to improve functionality and validation.
+We successfully implemented a complete compiler pipeline including the frontend (lexical analysis, parsing, and semantic analysis), intermediate representation generation (OLLIR), and backend code generation (Jasmin). Additionally, we implemented various optimizations and added extra components and tests to improve functionality and validation.
 
