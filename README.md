@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project implements the **frontend phase** of a Java Minus Minus (Jmm) compiler. This is the first delivery of the project, focusing solely on processing Jmm source code through multiple stages, including lexical analysis, parsing, and semantic analysis. Future phases will include code optimization, intermediate representation (IR) generation, and backend processing.
+This project implements a complete compiler for the Java Minus Minus (Jmm) language, covering all major phases of compilation. The compiler processes Jmm source code through lexical analysis, parsing, semantic analysis, intermediate representation generation (OLLIR), and backend code generation (Jasmin). It also includes multiple optimization techniques to improve performance and efficiency. This document corresponds to the final delivery, showcasing the full compilation pipeline and supporting components.
 
 ## Features
 
